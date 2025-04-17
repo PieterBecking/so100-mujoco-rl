@@ -1,12 +1,15 @@
 # Reinforcement Learning for the so100 (so-arm100)
-A collection of reinforcement learning experiments for the so100 using MuJoCo Playground.
+A collection of reinforcement learning experiments for the so100 using MuJoCo, Gymnasium, and Stable Baselines3.
 
 
 ## Dependencies
 
 This project uses the [Pixi](https://pixi.sh/) package management tool, you will need to install this.
 
-The application uses [MuJoCo Playground](https://playground.mujoco.org/) for reinforcement learning, it is installed as part of the getting started process.
+The following dependencies are used for simulation and RL, all of which are installed as part of the getting started process.
+- [MuJoCo](https://mujoco.org/)
+- [Gymnasium](https://gymnasium.farama.org/)
+- [Stable Baselines3](https://github.com/DLR-RM/stable-baselines3) 
 
 
 ## Getting started
