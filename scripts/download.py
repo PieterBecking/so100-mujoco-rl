@@ -48,5 +48,5 @@ if __name__ == "__main__":
         'https://github.com/google-deepmind/mujoco_menagerie/archive/68ff0ee1198e993bd824084b9ccd1826d835ea9f.zip',
         'mujoco_menagerie-68ff0ee1198e993bd824084b9ccd1826d835ea9f',
         'trs_so_arm100',
-        os.path.join(pathlib.Path(__file__).parent.parent, "src/so100_mujoco_sim/envs/model")
+        os.path.join(pathlib.Path(__file__).parent.parent, "src/so100_mujoco_rl/envs/model")
     )
