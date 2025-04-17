@@ -52,6 +52,7 @@ class So100BaseEnv(MujocoEnv, utils.EzPickle):
 
         self.loop_count = 0
         self.start_distance = None
+        self.last_reward = 0.0
 
     def get_observation_space(self):
         mins = [self.joints[i].range[0] for i in range(len(self.joints))]
@@ -77,8 +78,8 @@ class So100BaseEnv(MujocoEnv, utils.EzPickle):
             # in this case it's a Gymnasium Mujoco Viewer
             self.mujoco_renderer.viewer.add_overlay(
                 gridpos=mujoco.mjtGridPos.mjGRID_TOPRIGHT,
-                text1="A value",
-                text2="test"
+                text1="Reward",
+                text2=f"{self.last_reward:.3f}",
             )
         return super().render()
 
@@ -147,7 +148,7 @@ class So100BaseEnv(MujocoEnv, utils.EzPickle):
             reward += delta_distance_norm * 0.5
 
         # print("reward: ", reward)
-
+        self.last_reward = reward
         return reward
 
     def _get_obs(self):
