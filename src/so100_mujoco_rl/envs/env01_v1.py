@@ -50,4 +50,10 @@ class Env01(So100BaseEnv):
         random_block_pos = [x, y, 0.0]
         self.data.joint('block_a_joint').qpos[0:3] = random_block_pos
 
+        for joint in self.joints:
+            if joint.name == "Jaw":
+                continue
+            joint_name = MUJOCO_SO100_PREFIX + joint.name
+            self.data.joint(joint_name).qpos[0] = np.random.uniform(joint.range[0], joint.range[1])
+
         return self._get_obs()
