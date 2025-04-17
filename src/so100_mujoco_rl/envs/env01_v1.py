@@ -42,7 +42,7 @@ class Env01(So100BaseEnv):
 
         # get a random block location that is at least 80mm away from the base origin, but
         # within 420mm of the base origin
-        dist = np.random.uniform(0.08, 0.42)
+        dist = np.random.uniform(0.12, 0.42)
         theta = np.random.uniform(0, 2 * np.pi)
         x = dist * math.cos(theta)
         y = dist * math.sin(theta)
@@ -50,10 +50,13 @@ class Env01(So100BaseEnv):
         random_block_pos = [x, y, 0.0]
         self.data.joint('block_a_joint').qpos[0:3] = random_block_pos
 
-        for joint in self.joints:
+        # Get a random integer between 0 and the length of VALID_START_POSITIONS
+        random_index = np.random.randint(0, len(VALID_START_POSITIONS))
+        start_pos = VALID_START_POSITIONS[random_index]
+        for i, joint in enumerate(self.joints):
             if joint.name == "Jaw":
                 continue
             joint_name = MUJOCO_SO100_PREFIX + joint.name
-            self.data.joint(joint_name).qpos[0] = np.random.uniform(joint.range[0], joint.range[1])
+            self.data.joint(joint_name).qpos[0] = start_pos[i]
 
         return self._get_obs()
