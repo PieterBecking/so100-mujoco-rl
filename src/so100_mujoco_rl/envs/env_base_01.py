@@ -119,27 +119,6 @@ class So100BaseEnv(MujocoEnv, utils.EzPickle):
         )
 
         if self.start_distance is None and self.loop_count > 1:
-            initial_block_pos = self.get_block_pos()
-            initial_end_pos = self.get_end_effector_pos()
-            
-            distance = math.sqrt(
-                (initial_block_pos[0] - initial_end_pos[0]) ** 2 +
-                (initial_block_pos[1] - initial_end_pos[1]) ** 2 +
-                (initial_block_pos[2] - initial_end_pos[2]) ** 2
-            )
-            print("Setting start distance")
-            print(f"start_distance: {distance}")
-            print(f"init block_pos: {initial_block_pos}")
-            print(f"init end_pos: {initial_end_pos}")
-            print(dir(self.data.body(MUJOCO_SO100_PREFIX + 'Fixed_Jaw')))
-            print(self.data.body(MUJOCO_SO100_PREFIX + 'Fixed_Jaw').xmat)
-            print(type(self.data.body(MUJOCO_SO100_PREFIX + 'Fixed_Jaw').xmat))
-            print(self.data.body(MUJOCO_SO100_PREFIX + 'Fixed_Jaw').xpos)
-
-            # p = np.array([0,0,0], dtype=np.float32)
-            # t = self.data.body(MUJOCO_SO100_PREFIX + 'Fixed_Jaw').xmat @ p
-            # print(f"t: {t}")
-
             self.start_distance = distance
 
         if self.start_distance is not None:
