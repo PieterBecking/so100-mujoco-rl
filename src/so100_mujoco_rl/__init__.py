@@ -1,0 +1,11 @@
+from typing import Any
+
+from gymnasium.envs.registration import make, pprint_registry, register, registry, spec
+
+register(
+    id="Env01-v1",
+    entry_point="so100_mujoco_rl.envs.env01_v1:Env01",
+    max_episode_steps=6000,
+    reward_threshold=6000,
+)
+
