@@ -90,8 +90,15 @@ class So100BaseEnv(MujocoEnv, utils.EzPickle):
         return angles
     
     def get_end_effector_pos(self) -> list[float]:
-        pos = self.data.body(MUJOCO_SO100_PREFIX + 'Fixed_Jaw').xpos
-        return pos
+        # if we just use xpos, then we get the orgin of the fixed jaw instead of
+        # the tip of the fixed jaw
+        # below we add a 100mm offset in the -y direction, and convert that into
+        # world coordinates
+        xmat = self.data.body(MUJOCO_SO100_PREFIX + 'Fixed_Jaw').xmat.reshape(3, 3)
+        world_position = self.data.body(MUJOCO_SO100_PREFIX + 'Fixed_Jaw').xpos
+        local_point = np.array([0,-0.1,0], dtype=np.float32)
+        global_point = world_position + xmat @ local_point
+        return global_point
 
     def get_block_pos(self) -> list[float]:
         pos = self.data.body('block_a').xpos
@@ -123,6 +130,14 @@ class So100BaseEnv(MujocoEnv, utils.EzPickle):
             print(f"start_distance: {distance}")
             print(f"init block_pos: {initial_block_pos}")
             print(f"init end_pos: {initial_end_pos}")
+            print(dir(self.data.body(MUJOCO_SO100_PREFIX + 'Fixed_Jaw')))
+            print(self.data.body(MUJOCO_SO100_PREFIX + 'Fixed_Jaw').xmat)
+            print(type(self.data.body(MUJOCO_SO100_PREFIX + 'Fixed_Jaw').xmat))
+            print(self.data.body(MUJOCO_SO100_PREFIX + 'Fixed_Jaw').xpos)
+
+            # p = np.array([0,0,0], dtype=np.float32)
+            # t = self.data.body(MUJOCO_SO100_PREFIX + 'Fixed_Jaw').xmat @ p
+            # print(f"t: {t}")
 
             self.start_distance = distance
 
