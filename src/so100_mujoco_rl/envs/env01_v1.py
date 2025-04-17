@@ -37,10 +37,17 @@ class Env01(So100BaseEnv):
         return ob, reward, terminated, False, {}
 
     def reset_model(self):
-
         self.start_distance = None
         self.loop_count = 0
 
-        self.data.joint('block_a_joint').qpos[0:3] = [-0.3, -0.2, 0.0]
+        # get a random block location that is at least 80mm away from the base origin, but
+        # within 420mm of the base origin
+        dist = np.random.uniform(0.08, 0.42)
+        theta = np.random.uniform(0, 2 * np.pi)
+        x = dist * math.cos(theta)
+        y = dist * math.sin(theta)
+
+        random_block_pos = [x, y, 0.0]
+        self.data.joint('block_a_joint').qpos[0:3] = random_block_pos
 
         return self._get_obs()
