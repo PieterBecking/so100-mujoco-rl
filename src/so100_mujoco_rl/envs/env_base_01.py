@@ -55,6 +55,10 @@ class So100BaseEnv(MujocoEnv, utils.EzPickle):
         self.last_reward = 0.0
         self.last_distance = None
         self.last_joint_angles = None
+        self.last_end_pos = None
+        self.last_wrist_pos = None
+
+        self.reward_components = {}
 
     def get_observation_space(self):
         mins = [self.joints[i].range[0] for i in range(len(self.joints))]
@@ -62,9 +66,11 @@ class So100BaseEnv(MujocoEnv, utils.EzPickle):
 
         more_mins = [-1.0] * 12
         more_maxs = [-1.0] * 12
+        xyz_box_mins = [-0.5, -0.5, -0.5]
+        xyz_box_maxs = [0.5, 0.5, 0.5]
         observation_space = Box(
-            np.array([*more_mins, *mins, -1.0, -1.0, -1.0]),
-            np.array([*more_maxs, *maxs, 1.0, 1.0, 1.0]),
+            np.array([*more_mins, *mins, -1.0, -1.0, -1.0, *xyz_box_mins]),
+            np.array([*more_maxs, *maxs, 1.0, 1.0, 1.0, *xyz_box_maxs]),
             dtype=np.float32
         )
 
@@ -91,6 +97,12 @@ class So100BaseEnv(MujocoEnv, utils.EzPickle):
                 text1="Reward",
                 text2=f"{self.last_reward:.3f}",
             )
+            for key, value in self.reward_components.items():
+                self.mujoco_renderer.viewer.add_overlay(
+                    gridpos=mujoco.mjtGridPos.mjGRID_TOPRIGHT,
+                    text1=key,
+                    text2=f"{value:.3f}",
+                )
         return super().render()
 
     def get_joint_angles(self) -> list[float]:
@@ -99,7 +111,11 @@ class So100BaseEnv(MujocoEnv, utils.EzPickle):
             for joint in self.joints
         ]
         return angles
-    
+
+    def get_wrist_pos(self) -> list[float]:
+        world_position = self.data.body(MUJOCO_SO100_PREFIX + 'Wrist_Pitch_Roll').xpos
+        return world_position
+
     def get_end_effector_pos(self) -> list[float]:
         # if we just use xpos, then we get the orgin of the fixed jaw instead of
         # the tip of the fixed jaw
@@ -116,11 +132,12 @@ class So100BaseEnv(MujocoEnv, utils.EzPickle):
         return pos
 
     def _get_reward(self):
-        reward = 0.5
+        reward = 0.0
 
         joint_angles = self.get_joint_angles()
         block_pos = self.get_block_pos()
         end_pos = self.get_end_effector_pos()
+        wrist_pos = self.get_wrist_pos()
         # print(f"block_pos: {block_pos}")
         # print(f"end_pos: {end_pos}")
         distance = math.sqrt(
@@ -129,35 +146,66 @@ class So100BaseEnv(MujocoEnv, utils.EzPickle):
             (block_pos[2] - end_pos[2]) ** 2
         )
 
+        for k in self.reward_components.keys():
+            self.reward_components[k] = 0.0
+
         if block_pos[1] < -0.1:
             # then the block is in front of the robot
             # so the second joint, pitch, should be greater than -0.5 * pi
+
             if self.last_joint_angles is not None and joint_angles[1] < -0.5 * math.pi:
                 pitch = joint_angles[1]
                 last_pitch = self.last_joint_angles[1]
                 delta_pitch = pitch - last_pitch
                 # print(f"delta_pitch: {delta_pitch * 100}")
-                reward += (delta_pitch * 100)
+                reward += (delta_pitch * 50)
+                self.reward_components['rew pitch'] = delta_pitch * 50
 
+        if self.last_end_pos is not None:
+            if end_pos[2] < 0.01:
+                delta_end_pos_z = end_pos[2] - self.last_end_pos[2]
+                end_pos_z_reward = delta_end_pos_z * 1000
+                end_pos_z_reward = np.clip(end_pos_z_reward, -0.3, 0.3)
+                reward += end_pos_z_reward
+                self.reward_components['rew end pos z'] = end_pos_z_reward
+                # print(f"end_pos_z_reward: {end_pos_z_reward}")
+
+        if self.last_wrist_pos is not None:
+            if wrist_pos[2] < 0.04:
+                wrist_pos_z_reward = (wrist_pos[2] - 0.04) * 10.0
+                wrist_pos_z_reward = np.clip(wrist_pos_z_reward, -0.4, 0.4)
+                reward += wrist_pos_z_reward
+                self.reward_components['rew wrist pos z'] = wrist_pos_z_reward
+                # delta_wrist_pos_z = wrist_pos[2] - self.last_wrist_pos[2]
+                # print(f"delta_wrist_pos_A: { wrist_pos[2]}")
+                # print(f"delta_wrist_pos_z: { self.last_wrist_pos[2]}")
+                # wrist_pos_z_reward = delta_wrist_pos_z * 1000
+                # wrist_pos_z_reward = np.clip(wrist_pos_z_reward, -0.3, 0.3)
+                # reward += wrist_pos_z_reward
+                # print(f"wrist_pos_z_reward: {wrist_pos_z_reward}")
 
         if self.start_distance is None and self.loop_count > 1:
             self.start_distance = distance
 
         if self.start_distance is not None:
-            delta_distance_norm = (self.start_distance - distance) / self.start_distance
+            delta_distance_norm = (self.start_distance - distance) / 0.5
             reward += delta_distance_norm * 0.5
+            self.reward_components['rew start dist'] = delta_distance_norm * 0.5
 
-        # if self.last_distance is not None:
-        #     delta_distance = self.last_distance - distance
-        #     if delta_distance > 0:
-        #         reward += delta_distance * 500
-        #     else:
-        #         reward -= delta_distance * 500
-        self.last_distance = distance
+        if self.last_distance is not None:
+            delta_distance = self.last_distance - distance
+            delta_distance_reward = delta_distance * 500
+            delta_distance_reward = np.clip(delta_distance_reward, -0.25, 0.25)
+            reward += delta_distance_reward
+            self.reward_components['rew last dist'] = delta_distance_reward
+            # print(f"delta_distance: {delta_distance_reward}")
 
         # print("reward: ", reward)
+        self.last_distance = distance
         self.last_reward = reward
         self.last_joint_angles = joint_angles
+        self.last_end_pos = end_pos
+        self.last_wrist_pos = wrist_pos
         return reward
 
     def _get_obs(self):
@@ -187,6 +235,7 @@ class So100BaseEnv(MujocoEnv, utils.EzPickle):
                 dx,
                 dy,
                 dz,
+                *block_pos
             ],
             dtype=np.float32
         ).ravel()
