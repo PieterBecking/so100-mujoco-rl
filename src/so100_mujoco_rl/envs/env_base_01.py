@@ -54,6 +54,7 @@ class So100BaseEnv(MujocoEnv, utils.EzPickle):
         self.start_distance = None
         self.last_reward = 0.0
         self.last_distance = None
+        self.last_joint_angles = None
 
     def get_observation_space(self):
         mins = [self.joints[i].range[0] for i in range(len(self.joints))]
@@ -117,6 +118,7 @@ class So100BaseEnv(MujocoEnv, utils.EzPickle):
     def _get_reward(self):
         reward = 0.5
 
+        joint_angles = self.get_joint_angles()
         block_pos = self.get_block_pos()
         end_pos = self.get_end_effector_pos()
         # print(f"block_pos: {block_pos}")
@@ -126,6 +128,17 @@ class So100BaseEnv(MujocoEnv, utils.EzPickle):
             (block_pos[1] - end_pos[1]) ** 2 +
             (block_pos[2] - end_pos[2]) ** 2
         )
+
+        if block_pos[1] < -0.1:
+            # then the block is in front of the robot
+            # so the second joint, pitch, should be greater than -0.5 * pi
+            if self.last_joint_angles is not None and joint_angles[1] < -0.5 * math.pi:
+                pitch = joint_angles[1]
+                last_pitch = self.last_joint_angles[1]
+                delta_pitch = pitch - last_pitch
+                # print(f"delta_pitch: {delta_pitch * 100}")
+                reward += (delta_pitch * 100)
+
 
         if self.start_distance is None and self.loop_count > 1:
             self.start_distance = distance
@@ -144,6 +157,7 @@ class So100BaseEnv(MujocoEnv, utils.EzPickle):
 
         # print("reward: ", reward)
         self.last_reward = reward
+        self.last_joint_angles = joint_angles
         return reward
 
     def _get_obs(self):
