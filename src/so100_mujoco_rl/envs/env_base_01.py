@@ -53,16 +53,25 @@ class So100BaseEnv(MujocoEnv, utils.EzPickle):
         self.loop_count = 0
         self.start_distance = None
         self.last_reward = 0.0
+        self.last_distance = None
 
     def get_observation_space(self):
         mins = [self.joints[i].range[0] for i in range(len(self.joints))]
         maxs = [self.joints[i].range[1] for i in range(len(self.joints))]
 
+        more_mins = [-1.0] * 12
+        more_maxs = [-1.0] * 12
         observation_space = Box(
-            np.array([*mins, -1.0, -1.0, -1.0]),
-            np.array([*maxs, 1.0, 1.0, 1.0]),
+            np.array([*more_mins, *mins, -1.0, -1.0, -1.0]),
+            np.array([*more_maxs, *maxs, 1.0, 1.0, 1.0]),
             dtype=np.float32
         )
+
+        # observation_space = Box(
+        #     np.array([*mins, -1.0, -1.0, -1.0]),
+        #     np.array([*maxs, 1.0, 1.0, 1.0]),
+        #     dtype=np.float32
+        # )
         return observation_space
 
     def _set_action_space(self):
@@ -122,9 +131,16 @@ class So100BaseEnv(MujocoEnv, utils.EzPickle):
             self.start_distance = distance
 
         if self.start_distance is not None:
-
             delta_distance_norm = (self.start_distance - distance) / self.start_distance
             reward += delta_distance_norm * 0.5
+
+        # if self.last_distance is not None:
+        #     delta_distance = self.last_distance - distance
+        #     if delta_distance > 0:
+        #         reward += delta_distance * 500
+        #     else:
+        #         reward -= delta_distance * 500
+        self.last_distance = distance
 
         # print("reward: ", reward)
         self.last_reward = reward
@@ -135,14 +151,25 @@ class So100BaseEnv(MujocoEnv, utils.EzPickle):
 
         block_pos = self.get_block_pos()
         end_pos = self.get_end_effector_pos()
+        # print(f"block_pos: {block_pos}")
+        # print(f"end_pos: {end_pos}")
 
         dx = block_pos[0] - end_pos[0]
         dy = block_pos[1] - end_pos[1]
         dz = block_pos[2] - end_pos[2]
 
+        joint_angles = self.get_joint_angles()
+
+        # for i, joint in enumerate(self.joints):
+        #     ja = joint_angles[i]
+        #     if ja > joint.range[1] or ja < joint.range[0]:
+        #         print(f"Joint {joint.name} out of range: {ja} ({joint.range[0]}, {joint.range[1]})")
+
         return np.array(
             [
-                *self.get_joint_angles(),
+                *np.cos(joint_angles),
+                *np.sin(joint_angles),
+                *joint_angles,
                 dx,
                 dy,
                 dz,

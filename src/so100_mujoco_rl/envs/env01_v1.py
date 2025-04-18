@@ -5,7 +5,7 @@ import numpy as np
 from scipy.spatial.transform import Rotation
 
 from so100_mujoco_rl.envs.env_base_01 import So100BaseEnv
-from so100_mujoco_rl.envs.utils import JOINT_STEP_SCALE, MUJOCO_SO100_PREFIX
+from so100_mujoco_rl.envs.utils import JOINT_STEP_SCALE, MUJOCO_SO100_PREFIX, VALID_START_POSITIONS
 
 class Env01(So100BaseEnv):
 
@@ -42,8 +42,9 @@ class Env01(So100BaseEnv):
 
         # get a random block location that is at least 80mm away from the base origin, but
         # within 420mm of the base origin
-        dist = np.random.uniform(0.12, 0.42)
+        dist = np.random.uniform(0.18, 0.42)
         theta = np.random.uniform(0, 2 * np.pi)
+        theta = -0.5 * np.pi + np.random.uniform(-0.25 * np.pi, 0.25 * np.pi)
         x = dist * math.cos(theta)
         y = dist * math.sin(theta)
 
