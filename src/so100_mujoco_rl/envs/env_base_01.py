@@ -64,21 +64,14 @@ class So100BaseEnv(MujocoEnv, utils.EzPickle):
         mins = [self.joints[i].range[0] for i in range(len(self.joints))]
         maxs = [self.joints[i].range[1] for i in range(len(self.joints))]
 
-        more_mins = [-1.0] * 12
-        more_maxs = [-1.0] * 12
         xyz_box_mins = [-0.5, -0.5, -0.5]
         xyz_box_maxs = [0.5, 0.5, 0.5]
+
         observation_space = Box(
-            np.array([*more_mins, *mins, -1.0, -1.0, -1.0, *xyz_box_mins]),
-            np.array([*more_maxs, *maxs, 1.0, 1.0, 1.0, *xyz_box_maxs]),
+            np.array([*mins, -1.0, -1.0, -1.0, *xyz_box_mins]),
+            np.array([*maxs, 1.0, 1.0, 1.0, *xyz_box_maxs]),
             dtype=np.float32
         )
-
-        # observation_space = Box(
-        #     np.array([*mins, -1.0, -1.0, -1.0]),
-        #     np.array([*maxs, 1.0, 1.0, 1.0]),
-        #     dtype=np.float32
-        # )
         return observation_space
 
     def _set_action_space(self):
@@ -229,8 +222,6 @@ class So100BaseEnv(MujocoEnv, utils.EzPickle):
 
         return np.array(
             [
-                *np.cos(joint_angles),
-                *np.sin(joint_angles),
                 *joint_angles,
                 dx,
                 dy,
