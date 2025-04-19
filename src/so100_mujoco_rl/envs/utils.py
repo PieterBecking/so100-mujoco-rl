@@ -7,7 +7,7 @@ import mujoco
 # the `sim_scene.xml` file.
 MUJOCO_SO100_PREFIX = "so100_"
 
-JOINT_STEP_SCALE = 0.05
+JOINT_STEP_SCALE = 0.075
 
 VALID_START_POSITIONS = [
     [0.116, -2.848, 1.84, 1.198, -1.598, 0.191],
