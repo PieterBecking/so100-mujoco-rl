@@ -64,12 +64,12 @@ class So100BaseEnv(MujocoEnv, utils.EzPickle):
         mins = [self.joints[i].range[0] for i in range(len(self.joints))]
         maxs = [self.joints[i].range[1] for i in range(len(self.joints))]
 
-        xyz_box_mins = [-0.5, -0.5, -0.5]
-        xyz_box_maxs = [0.5, 0.5, 0.5]
+        xyz_mins = [-0.5, -0.5, -0.5]
+        xyz_maxs = [0.5, 0.5, 0.5]
 
         observation_space = Box(
-            np.array([*mins, -1.0, -1.0, -1.0, *xyz_box_mins]),
-            np.array([*maxs, 1.0, 1.0, 1.0, *xyz_box_maxs]),
+            np.array([*mins, -1.0, -1.0, -1.0, *xyz_mins, *xyz_mins]),
+            np.array([*maxs, 1.0, 1.0, 1.0, *xyz_maxs, *xyz_maxs]),
             dtype=np.float32
         )
         return observation_space
@@ -213,7 +213,8 @@ class So100BaseEnv(MujocoEnv, utils.EzPickle):
                 dx,
                 dy,
                 dz,
-                *block_pos
+                *block_pos,
+                *end_pos
             ],
             dtype=np.float32
         ).ravel()
