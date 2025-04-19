@@ -124,6 +124,29 @@ class So100BaseEnv(MujocoEnv, utils.EzPickle):
         pos = self.data.body('block_a').xpos
         return pos
 
+    def _get_joint_reward(self) -> float:
+        reward = 0.0
+        joint_angles = self.get_joint_angles()
+        for i, joint in enumerate(self.joints):
+            joint_range = joint.range
+            joint_angle = joint_angles[i]
+
+            # Calculate the first and last 5% of the range
+            lower_threshold = joint_range[0] + 0.05 * (joint_range[1] - joint_range[0])
+            upper_threshold = joint_range[1] - 0.05 * (joint_range[1] - joint_range[0])
+
+            # Penalize if the joint angle is in the first or last 5% of the range
+            if joint_angle < lower_threshold:
+                penalty = (lower_threshold - joint_angle) * 10.0
+                reward -= penalty
+                # self.reward_components[f'joint_{i}_low_penalty'] = penalty
+            elif joint_angle > upper_threshold:
+                penalty = (joint_angle - upper_threshold) * 10.0
+                reward -= penalty
+                # self.reward_components[f'joint_{i}_high_penalty'] = penalty
+
+        return reward
+
     def _get_reward(self):
         reward = 0.0
 
@@ -179,6 +202,10 @@ class So100BaseEnv(MujocoEnv, utils.EzPickle):
             reward += delta_distance_reward
             self.reward_components['rew last dist'] = delta_distance_reward
             # print(f"delta_distance: {delta_distance_reward}")
+
+        joint_reward = self._get_joint_reward()
+        reward += joint_reward
+        self.reward_components['rew joint'] = joint_reward
 
         # print("reward: ", reward)
         self.last_distance = distance
