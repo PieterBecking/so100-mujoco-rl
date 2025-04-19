@@ -145,23 +145,17 @@ class So100BaseEnv(MujocoEnv, utils.EzPickle):
         if block_pos[1] < -0.1:
             # then the block is in front of the robot
             # so the second joint, pitch, should be greater than -0.5 * pi
-
-            if self.last_joint_angles is not None and joint_angles[1] < -0.5 * math.pi:
-                pitch = joint_angles[1]
-                last_pitch = self.last_joint_angles[1]
-                delta_pitch = pitch - last_pitch
-                # print(f"delta_pitch: {delta_pitch * 100}")
-                reward += (delta_pitch * 50)
-                self.reward_components['rew pitch'] = delta_pitch * 50
+            pitch = joint_angles[1]
+            if self.last_joint_angles is not None and pitch < -0.5 * math.pi:
+                pitch_reward = (pitch + 0.5 * math.pi) * 0.7
+                reward += pitch_reward
+                self.reward_components['rew pitch'] = pitch_reward
 
         if self.last_end_pos is not None:
-            if end_pos[2] < 0.01:
-                delta_end_pos_z = end_pos[2] - self.last_end_pos[2]
-                end_pos_z_reward = delta_end_pos_z * 1000
-                end_pos_z_reward = np.clip(end_pos_z_reward, -0.3, 0.3)
+            if end_pos[2] < 0.02:
+                end_pos_z_reward = (end_pos[2] - 0.02) * 20.0
                 reward += end_pos_z_reward
                 self.reward_components['rew end pos z'] = end_pos_z_reward
-                # print(f"end_pos_z_reward: {end_pos_z_reward}")
 
         if self.last_wrist_pos is not None:
             if wrist_pos[2] < 0.04:
@@ -169,13 +163,6 @@ class So100BaseEnv(MujocoEnv, utils.EzPickle):
                 wrist_pos_z_reward = np.clip(wrist_pos_z_reward, -0.4, 0.4)
                 reward += wrist_pos_z_reward
                 self.reward_components['rew wrist pos z'] = wrist_pos_z_reward
-                # delta_wrist_pos_z = wrist_pos[2] - self.last_wrist_pos[2]
-                # print(f"delta_wrist_pos_A: { wrist_pos[2]}")
-                # print(f"delta_wrist_pos_z: { self.last_wrist_pos[2]}")
-                # wrist_pos_z_reward = delta_wrist_pos_z * 1000
-                # wrist_pos_z_reward = np.clip(wrist_pos_z_reward, -0.3, 0.3)
-                # reward += wrist_pos_z_reward
-                # print(f"wrist_pos_z_reward: {wrist_pos_z_reward}")
 
         if self.start_distance is None and self.loop_count > 1:
             self.start_distance = distance
