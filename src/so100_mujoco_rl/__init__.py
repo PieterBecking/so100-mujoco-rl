@@ -9,3 +9,9 @@ register(
     reward_threshold=6000,
 )
 
+register(
+    id="Env02-v1",
+    entry_point="so100_mujoco_rl.envs.env02_v1:Env02",
+    max_episode_steps=6000,
+    reward_threshold=8000,
+)

@@ -124,6 +124,17 @@ class So100BaseEnv(MujocoEnv, utils.EzPickle):
         pos = self.data.body('block_a').xpos
         return pos
 
+    def get_block_to_end_distance(self) -> float:
+        """ Distance between the block and the end effector """
+        block_pos = self.get_block_pos()
+        end_pos = self.get_end_effector_pos()
+        distance = math.sqrt(
+            (block_pos[0] - end_pos[0]) ** 2 +
+            (block_pos[1] - end_pos[1]) ** 2 +
+            (block_pos[2] - end_pos[2]) ** 2
+        )
+        return distance
+
     def _get_joint_reward(self) -> float:
         reward = 0.0
         joint_angles = self.get_joint_angles()
