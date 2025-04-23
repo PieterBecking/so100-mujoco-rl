@@ -2,17 +2,24 @@
 import math
 import os
 import time
+from pathlib import Path
 
+import cv2
+import glfw
 import mujoco
 import numpy as np
 from gymnasium.envs.mujoco.mujoco_rendering import OffScreenViewer
+from gymnasium.spaces import Box
 from PIL import Image
+from ultralytics import YOLO
 
 from so100_mujoco_rl.envs.env_base_01 import So100BaseEnv
 from so100_mujoco_rl.envs.utils import JOINT_STEP_SCALE, MUJOCO_SO100_PREFIX
 
-import glfw
 START_POSITION = [0.0, -2.04, 1.19, 1.5, -1.58, 0.5]
+
+END_CAM_RES_WIDTH = 1080
+END_CAM_RES_HEIGHT = 1920
 
 # The Gymnasium offscreen renderer doesn't quite work the way we need. It seems
 # to not fix the camera to the end of the arm. Also doesn't quite respect the width
@@ -69,12 +76,15 @@ class Env03(So100BaseEnv):
     def __init__(self, **kwargs):
         So100BaseEnv.__init__(self, './model/env01.xml', **kwargs)
 
-        self.block_pos = None
-        self.last_block_pos = None
+        # the last good observation center x and y
+        self.last_ob_center_x = None
+        self.last_ob_center_y = None
+        # number of steps a detected object has not been found
+        self.last_ob_center_count = 0
 
         self.offscreen_viewer = EndCamOffScreenViewer(
-            width=1080,
-            height=1920,
+            width=END_CAM_RES_WIDTH,
+            height=END_CAM_RES_HEIGHT,
             model=self.model,
             data=self.data,
         )
@@ -84,12 +94,30 @@ class Env03(So100BaseEnv):
             os.makedirs(self.image_folder)
         self.last_image_save_time = 0
 
+        # load the YOLO model
+        current_dir = Path(__file__).parent
+        model_path = current_dir / "detect_models" / "best.pt"
+        self.yolo_model = YOLO(str(model_path))
+
+    def get_observation_space(self):
+        mins = [self.joints[i].range[0] for i in range(len(self.joints))]
+        maxs = [self.joints[i].range[1] for i in range(len(self.joints))]
+
+        # observation space is:
+        # joint angles
+        # detected object bbox center X (as a fraction of the image width)
+        # detected object bbox center Y (as a fraction of the image height)
+        observation_space = Box(
+            np.array([*mins, 0.0, 0.0]),
+            np.array([*maxs, 1.0, 1.0]),
+            dtype=np.float32
+        )
+        return observation_space
+
     def render(self):
         return super().render()
 
     def step(self, a):
-        reward = self._get_reward()
-
         joint_angles = self.get_joint_angles()
         new_joint_angles = [
             joint_angles[i] + a[i] * JOINT_STEP_SCALE for i in range(len(joint_angles))
@@ -98,15 +126,6 @@ class Env03(So100BaseEnv):
         for joint, new_angle in zip(self.joints, new_joint_angles):
             self.data.actuator(MUJOCO_SO100_PREFIX + joint.name).ctrl = new_angle
 
-        if self.get_block_to_end_distance() < 0.02:
-            # give it a bonus reward for reaching the block based on its distance
-            # from the previous block
-            block_distance = np.linalg.norm(
-                np.array(self.block_pos) - np.array(self.last_block_pos)
-            )
-            reward += block_distance * 20
-
-            self.set_random_block_position()
 
         mujoco.mj_step(self.model, self.data, nstep=self.frame_skip)
         mujoco.mj_rnePostConstraint(self.model, self.data)
@@ -117,7 +136,35 @@ class Env03(So100BaseEnv):
             self.render()
 
         ob = self._get_obs()
-        # print( f"ob: {ob}")
+
+        obs_center_x_f = ob[-2]
+        obs_center_y_f = ob[-1]
+        if obs_center_x_f == -1.0 and obs_center_y_f == -1.0:
+            # nothing detected this time
+            if self.last_ob_center_count > 10:
+                # if we haven't detected anything for 10 steps, then terminate as we've lost
+                # the cube
+                terminated = True
+            self.last_ob_center_count += 1
+        else:
+            self.last_ob_center_x = obs_center_x_f
+            self.last_ob_center_y = obs_center_y_f
+            self.last_ob_center_count = 0
+
+        reward = 0.5
+
+        if self.last_ob_center_x is not None and self.last_ob_center_y is not None:
+            # if we have a last detected object, then give a reward based on how far
+            # the current detected object is from the last one
+            detected_distance_reward = -1 * np.sqrt(
+                (0.5 - self.last_ob_center_x) ** 2 +
+                (0.5 - self.last_ob_center_y) ** 2
+            )
+            reward += detected_distance_reward
+            self.reward_components["r detected dist"] = detected_distance_reward
+
+        self.last_reward = reward
+
         # truncation=False as the time limit is handled by the `TimeLimit` wrapper added during `make`
         return ob, reward, terminated, False, {}
 
@@ -132,12 +179,6 @@ class Env03(So100BaseEnv):
 
         random_block_pos = [x, y, 0.0]
         self.data.joint('block_a_joint').qpos[0:3] = random_block_pos
-
-        if self.last_block_pos is None:
-            self.last_block_pos = random_block_pos
-        else:
-            self.last_block_pos = self.block_pos
-        self.block_pos = random_block_pos
 
     def reset_model(self):
         self.start_distance = None
@@ -166,28 +207,58 @@ class Env03(So100BaseEnv):
     def _get_obs(self):
         self.loop_count += 1
 
-        if int(time.time() * 1000) - self.last_image_save_time > 5000:
-            img = self.offscreen_viewer.render()
+        img = self.offscreen_viewer.render()
+        results = self.yolo_model(img, verbose=False)
+
+        obs_center_x_f = -1.0
+        obs_center_y_f = -1.0
+
+        for result in results:
+            for box in result.boxes:
+                confidence = box.conf[0]
+                if confidence < 0.6:
+                    continue
+                x1, y1, x2, y2 = map(int, box.xyxy[0])
+                center_x = (x1 + x2) // 2
+                center_y = (y1 + y2) // 2
+                center_x_f = center_x / img.shape[1]
+                center_y_f = center_y / img.shape[0]
+                width = x2 - x1
+                height = y2 - y1
+                width_f = width / img.shape[1]
+                height_f = height / img.shape[0]
+
+                obs_center_x_f = center_x_f
+                obs_center_y_f = center_y_f 
+
+
+        if False and int(time.time() * 1000) - self.last_image_save_time > 1000:
+            # print(results)
+            # Draw detections back into the image
+            for result in results:
+                for box in result.boxes:
+                    confidence = box.conf[0]
+                    x1, y1, x2, y2 = map(int, box.xyxy[0])
+                    label = box.cls[0]
+                    label_text = f"{self.yolo_model.names[int(label)]} {confidence:.2f}"
+
+                    # Draw bounding box
+                    img = cv2.rectangle(img, (x1, y1), (x2, y2), (0, 255, 0), 2)
+                    # Put label text
+                    img = cv2.putText(
+                        img, label_text, (x1, y1 - 10), cv2.FONT_HERSHEY_SIMPLEX, 0.5, (0, 255, 0), 2
+                    )
+
             self.__save_render(img)
             self.last_image_save_time = int(time.time() * 1000)
-
-        block_pos = self.get_block_pos()
-        end_pos = self.get_end_effector_pos()
-
-        dx = block_pos[0] - end_pos[0]
-        dy = block_pos[1] - end_pos[1]
-        dz = block_pos[2] - end_pos[2]
 
         joint_angles = self.get_joint_angles()
 
         return np.array(
             [
                 *joint_angles,
-                dx,
-                dy,
-                dz,
-                *block_pos,
-                *end_pos
+                obs_center_x_f,
+                obs_center_y_f,
             ],
             dtype=np.float32
         ).ravel()
