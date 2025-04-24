@@ -88,23 +88,7 @@ class Env03(So100BaseEnv):
     def __init__(self, **kwargs):
         So100BaseEnv.__init__(self, './model/env01.xml', **kwargs)
 
-        # the last good observation center x and y
-        self.last_ob_center_x = None
-        self.last_ob_center_y = None
-        # number of steps a detected object has not been found
-        self.last_ob_center_count = 0
-        self.cached_ob_center_x = -1.0
-        self.cached_ob_center_y = -1.0
-
-        self.block_space_min = BLOCK_SPACE_START[0]
-        self.block_space_max = BLOCK_SPACE_START[1]
-        self.block_speed = BLOCK_SPEED_MIN
-        # initial block target is the center of the block space
-        self.block_target = [
-            (BLOCK_SPACE_START[0][i] + BLOCK_SPACE_START[1][i]) / 2 for i in range(3)
-        ]
-        self.block_target_dt = 0.01
-        self.block_target_time = 0.0
+        self._set_initial_values()
 
         self.offscreen_viewer = EndCamOffScreenViewer(
             width=END_CAM_RES_WIDTH,
@@ -122,6 +106,27 @@ class Env03(So100BaseEnv):
         current_dir = Path(__file__).parent
         model_path = current_dir / "detect_models" / "best.pt"
         self.yolo_model = YOLO(str(model_path))
+
+        self.data.joint('block_a_joint').qpos[0:3] = self.block_target
+
+    def _set_initial_values(self):
+        # the last good observation center x and y
+        self.last_ob_center_x = None
+        self.last_ob_center_y = None
+        # number of steps a detected object has not been found
+        self.last_ob_center_count = 0
+        self.cached_ob_center_x = -1.0
+        self.cached_ob_center_y = -1.0
+
+        self.block_space_min = BLOCK_SPACE_START[0]
+        self.block_space_max = BLOCK_SPACE_START[1]
+        self.block_speed = BLOCK_SPEED_MIN
+        # initial block target is the center of the block space
+        self.block_target = [
+            (BLOCK_SPACE_START[0][i] + BLOCK_SPACE_START[1][i]) / 2 for i in range(3)
+        ]
+        self.block_target_dt = 0.01
+        self.block_target_time = 0.0
 
     def get_observation_space(self):
         mins = [self.joints[i].range[0] for i in range(len(self.joints))]
@@ -254,23 +259,12 @@ class Env03(So100BaseEnv):
         # truncation=False as the time limit is handled by the `TimeLimit` wrapper added during `make`
         return ob, reward, terminated, False, {}
 
-    def set_random_block_position(self):
-        # get a random block location that is at least 80mm away from the base origin, but
-        # within 420mm of the base origin
-        dist = np.random.uniform(0.25, 0.42)
-        theta = np.random.uniform(0, 2 * np.pi)
-        theta = -0.5 * np.pi + np.random.uniform(-0.05 * np.pi, 0.05 * np.pi)
-        x = dist * math.cos(theta)
-        y = dist * math.sin(theta)
-
-        random_block_pos = [x, y, 0.0]
-        self.data.joint('block_a_joint').qpos[0:3] = random_block_pos
-
     def reset_model(self):
         self.start_distance = None
         self.loop_count = 0
 
-        self.set_random_block_position()
+        self._set_initial_values()
+        self.data.joint('block_a_joint').qpos[0:3] = self.block_target
 
         start_pos = START_POSITION
         for i, joint in enumerate(self.joints):
