@@ -128,6 +128,8 @@ class Env03(So100BaseEnv):
         self.block_target_dt = 0.01
         self.block_target_time = 0.0
 
+        self.tracking_id = None
+
     def get_observation_space(self):
         mins = [self.joints[i].range[0] for i in range(len(self.joints))]
         maxs = [self.joints[i].range[1] for i in range(len(self.joints))]
@@ -287,20 +289,29 @@ class Env03(So100BaseEnv):
         Image.fromarray(image).save(filename)
 
     def _get_obs(self):
-        img = self.offscreen_viewer.render()
-        results = self.yolo_model(img, verbose=False)
-
         obs_center_x_f = -1.0
         obs_center_y_f = -1.0
 
         if self.loop_count % self.frame_skip == 0:
             img = self.offscreen_viewer.render()
-            results = self.yolo_model(img, device='mps', verbose=False)
+            results = self.yolo_model.track(
+                img,
+                persist=True,
+                device='mps',
+                verbose=False,
+                tracker="botsort.yaml",
+                conf=0.25,
+                iou=0.3
+            )
 
             for result in results:
                 for box in result.boxes:
                     confidence = box.conf[0]
-                    if confidence < 0.6:
+                    if confidence < 0.1:
+                        continue
+                    if self.tracking_id is None and box.id is not None:
+                        self.tracking_id = box.id[0]
+                    if self.tracking_id is not None and box.id is not None and box.id[0] != self.tracking_id:
                         continue
                     x1, y1, x2, y2 = map(int, box.xyxy[0])
                     center_x = (x1 + x2) // 2
@@ -322,21 +333,30 @@ class Env03(So100BaseEnv):
             obs_center_x_f = self.cached_ob_center_x
             obs_center_y_f = self.cached_ob_center_y
 
-        if False and int(time.time() * 1000) - self.last_image_save_time > 1000:
+        # if  int(time.time() * 1000) - self.last_image_save_time > 1000:
+        if False and self.loop_count % self.frame_skip == 0:
             # print(results)
             # Draw detections back into the image
+            if results is None:
+                results = []
             for result in results:
                 for box in result.boxes:
                     confidence = box.conf[0]
+                    if confidence < 0.1:
+                        continue
+                    if self.tracking_id is not None and box.id is not None and box.id[0] != self.tracking_id:
+                        c = (255, 0, 0)
+                    else:
+                        c = (0, 255, 0)
                     x1, y1, x2, y2 = map(int, box.xyxy[0])
                     label = box.cls[0]
                     label_text = f"{self.yolo_model.names[int(label)]} {confidence:.2f}"
 
                     # Draw bounding box
-                    img = cv2.rectangle(img, (x1, y1), (x2, y2), (0, 255, 0), 2)
+                    img = cv2.rectangle(img, (x1, y1), (x2, y2), c, 2)
                     # Put label text
                     img = cv2.putText(
-                        img, label_text, (x1, y1 - 10), cv2.FONT_HERSHEY_SIMPLEX, 0.5, (0, 255, 0), 2
+                        img, label_text, (x1, y1 + 14), cv2.FONT_HERSHEY_SIMPLEX, 0.5, c, 2
                     )
 
             self.__save_render(img)
