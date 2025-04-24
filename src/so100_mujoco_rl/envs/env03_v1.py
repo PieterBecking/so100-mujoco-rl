@@ -81,6 +81,8 @@ class Env03(So100BaseEnv):
         self.last_ob_center_y = None
         # number of steps a detected object has not been found
         self.last_ob_center_count = 0
+        self.cached_ob_center_x = -1.0
+        self.cached_ob_center_y = -1.0
 
         self.offscreen_viewer = EndCamOffScreenViewer(
             width=END_CAM_RES_WIDTH,
@@ -205,32 +207,37 @@ class Env03(So100BaseEnv):
         Image.fromarray(image).save(filename)
 
     def _get_obs(self):
-        self.loop_count += 1
-
         img = self.offscreen_viewer.render()
         results = self.yolo_model(img, verbose=False)
 
         obs_center_x_f = -1.0
         obs_center_y_f = -1.0
 
-        for result in results:
-            for box in result.boxes:
-                confidence = box.conf[0]
-                if confidence < 0.6:
-                    continue
-                x1, y1, x2, y2 = map(int, box.xyxy[0])
-                center_x = (x1 + x2) // 2
-                center_y = (y1 + y2) // 2
-                center_x_f = center_x / img.shape[1]
-                center_y_f = center_y / img.shape[0]
-                width = x2 - x1
-                height = y2 - y1
-                width_f = width / img.shape[1]
-                height_f = height / img.shape[0]
+        if self.loop_count % self.frame_skip == 0:
+            for result in results:
+                for box in result.boxes:
+                    confidence = box.conf[0]
+                    if confidence < 0.6:
+                        continue
+                    x1, y1, x2, y2 = map(int, box.xyxy[0])
+                    center_x = (x1 + x2) // 2
+                    center_y = (y1 + y2) // 2
+                    center_x_f = center_x / img.shape[1]
+                    center_y_f = center_y / img.shape[0]
+                    width = x2 - x1
+                    height = y2 - y1
+                    width_f = width / img.shape[1]
+                    height_f = height / img.shape[0]
 
-                obs_center_x_f = center_x_f
-                obs_center_y_f = center_y_f 
+                    obs_center_x_f = center_x_f
+                    obs_center_y_f = center_y_f
 
+            self.cached_ob_center_x = obs_center_x_f
+            self.cached_ob_center_y = obs_center_y_f
+        else:
+            # use the cached values from the last offscreen render / yolo detection
+            obs_center_x_f = self.cached_ob_center_x
+            obs_center_y_f = self.cached_ob_center_y
 
         if False and int(time.time() * 1000) - self.last_image_save_time > 1000:
             # print(results)
@@ -253,6 +260,8 @@ class Env03(So100BaseEnv):
             self.last_image_save_time = int(time.time() * 1000)
 
         joint_angles = self.get_joint_angles()
+
+        self.loop_count += 1
 
         return np.array(
             [
