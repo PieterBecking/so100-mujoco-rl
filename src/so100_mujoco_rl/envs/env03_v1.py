@@ -256,6 +256,8 @@ class Env03(So100BaseEnv):
 
         self.last_reward = reward
 
+        self.reward_components["terminated"] = terminated
+
         # truncation=False as the time limit is handled by the `TimeLimit` wrapper added during `make`
         return ob, reward, terminated, False, {}
 

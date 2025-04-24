@@ -91,10 +91,16 @@ class So100BaseEnv(MujocoEnv, utils.EzPickle):
                 text2=f"{self.last_reward:.3f}",
             )
             for key, value in self.reward_components.items():
+                if isinstance(value, (float, np.floating)):
+                    val_s = f"{value:.3f}"
+                elif isinstance(value, (bool, int)):
+                    val_s = f"{value}"
+                else:
+                    val_s = str(value)
                 self.mujoco_renderer.viewer.add_overlay(
                     gridpos=mujoco.mjtGridPos.mjGRID_TOPRIGHT,
                     text1=key,
-                    text2=f"{value:.3f}",
+                    text2=val_s,
                 )
         return super().render()
 
