@@ -292,6 +292,9 @@ class Env03(So100BaseEnv):
         obs_center_y_f = -1.0
 
         if self.loop_count % self.frame_skip == 0:
+            img = self.offscreen_viewer.render()
+            results = self.yolo_model(img, device='mps', verbose=False)
+
             for result in results:
                 for box in result.boxes:
                     confidence = box.conf[0]
