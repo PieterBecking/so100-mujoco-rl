@@ -12,8 +12,10 @@ dependencies = [
     "imageio>=2.37.0,<3",
     "gymnasium[other]>=1.1.1,<2",
     "tensorboard>=2.19.0,<3",
-    "standard-imghdr>=3.13.0,<4"
-]
+    "standard-imghdr>=3.13.0,<4",
+    "pillow>=11.2.1,<12",
+    "ultralytics>=8.3.114,<9"
+, "opencv-python>=4.11.0.86,<5", "lap>=0.5.12,<0.6"]
 
 [build-system]
 build-backend = "hatchling.build"
