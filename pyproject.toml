@@ -15,7 +15,7 @@ dependencies = [
     "standard-imghdr>=3.13.0,<4",
     "pillow>=11.2.1,<12",
     "ultralytics>=8.3.114,<9"
-, "opencv-python>=4.11.0.86,<5", "lap>=0.5.12,<0.6"]
+, "opencv-python>=4.11.0.86,<5", "lap>=0.5.12,<0.6", "draccus>=0.11.5,<0.12", "feetech-servo-sdk>=1.0.0,<2"]
 
 [build-system]
 build-backend = "hatchling.build"

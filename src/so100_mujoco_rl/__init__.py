@@ -5,7 +5,7 @@ from gymnasium.envs.registration import make, pprint_registry, register, registr
 register(
     id="Env01-v1",
     entry_point="so100_mujoco_rl.envs.env01_v1:Env01",
-    max_episode_steps=6000,
+    max_episode_steps=4000,
     reward_threshold=6000,
 )
 

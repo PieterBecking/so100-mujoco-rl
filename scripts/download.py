@@ -50,3 +50,11 @@ if __name__ == "__main__":
         'trs_so_arm100',
         os.path.join(pathlib.Path(__file__).parent.parent, "src/so100_mujoco_rl/envs/model")
     )
+
+    # download the lerobot code
+    download(
+        'https://github.com/huggingface/lerobot/archive/5322417c0302b517b94d938e12b0e10405e6b649.zip',
+        'lerobot-5322417c0302b517b94d938e12b0e10405e6b649',
+        'lerobot',
+        os.path.join(pathlib.Path(__file__).parent.parent, "src/lerobot")
+    )

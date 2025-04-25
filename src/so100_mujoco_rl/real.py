@@ -1,7 +1,17 @@
+import time
+from pathlib import Path
+
 import click
 import cv2
+import gymnasium as gym
+import stable_baselines3
 from ultralytics import YOLO
-from pathlib import Path
+
+# while not called directly, we need to import this so the environments are registered
+import so100_mujoco_rl
+from so100_mujoco_rl.arm_control import So100ArmController
+from so100_mujoco_rl.envs.utils import JOINT_STEP_SCALE
+
 
 @click.command(name="look-at", help="Uses a trained YOLO model to detect objects in web camera feed")
 @click.option('-r', '--rotate', is_flag=True, help="Rotate the web camera 90 degrees (default: False)")
@@ -9,12 +19,31 @@ from pathlib import Path
 @click.option('-d', '--device', default='cpu', type=str, help="Device used to run YOLO model (default: 'cpu')")
 @click.option('-omp', '--object-detection-model-path', required=True, type=str, help="Full path to the trained model for object detection (weights *.pt file)")
 @click.option('-rp', '--robot-policy-path', required=True, type=str, help="Full path to the trained policy for moving arm (*.zip file)")
+@click.option(
+    '-a',
+    '--algorithm',
+    required=True,
+    type=str,
+    default='PPO',
+    help="Stable Baseline3 algorithm used to train policy (eg; A2C, DDPG, DQN, PPO, SAC, TD3)"
+)
+@click.option(
+    '-p',
+    '--port',
+    default=None,
+    type=str,
+    help="USB port for the robot"
+)
+@click.option('-e', '--environment', required=True, type=str, help="id of Gymnasium environment (eg; Env01-v1)")
 def run_look_at(
         rotate: bool,
         source: int,
         device: str,
         object_detection_model_path: str,
-        robot_policy_path: str
+        robot_policy_path: str,
+        algorithm: str,
+        port: str,
+        environment: str
     ):
 
     click.echo("Running detection on images from web camera...")
@@ -26,8 +55,23 @@ def run_look_at(
 
     model = YOLO(object_detection_model_path)
     tracker_path = Path(__file__).parent / "envs" / "tracker.yaml"
-
+    # id of the cube currently being tracked
     tracking_id = None
+
+    algorithm_class = getattr(stable_baselines3, algorithm, None)
+    env = gym.make(environment, render_mode='human')
+    policy = algorithm_class.load(robot_policy_path, env=env)
+
+    arm_controller = So100ArmController()
+    src_folder = Path(__file__).parent.parent
+    config_folder = src_folder / "configs"
+    arm_controller.connect(port, calibration_dir=config_folder)
+    time.sleep(0.2)
+    arm_controller.update()
+    joint_positions = arm_controller.joint_actual_positions
+
+    cached_ob_center_x = 0.5
+    cached_ob_center_y = 0.5
 
     while True:
         ret, img = cam.read()
@@ -75,6 +119,8 @@ def run_look_at(
 
                 obs_center_x_f = center_x_f
                 obs_center_y_f = center_y_f
+                cached_ob_center_x = center_x_f
+                cached_ob_center_y = center_y_f
 
         if obs_center_x_f == -1.0 and obs_center_y_f == -1.0:
             tracking_id = None
@@ -104,6 +150,36 @@ def run_look_at(
                 img = cv2.putText(
                     img, label_text, (x1, y1 + 14), cv2.FONT_HERSHEY_SIMPLEX, 0.5, c, 2
                 )
+        
+        # didn't get good results when using the actual positions returned from the real
+        # robot. Hence why the following is commented out
+        # arm_controller.update()
+        # joint_positions = arm_controller.joint_actual_positions
+        obs = [
+            *joint_positions,
+            cached_ob_center_x,
+            cached_ob_center_y * 1.0,
+        ]
+
+        # get the actions from the policy
+        a, _ = policy.predict(obs)
+
+        new_joint_positions = [
+            joint_positions[i] + float(a[i]) * JOINT_STEP_SCALE for i in range(len(joint_positions))
+        ]
+
+        # Apply a high-pass filter to smooth the joint positions
+        alpha = 0.2  # Smoothing factor (adjust as needed)
+        smoothed_joint_positions = [
+            alpha * new_joint_positions[i] + (1 - alpha) * joint_positions[i]
+            for i in range(len(joint_positions))
+        ]
+        # print(f"old_joint_angles: {joint_positions}")
+        # print(f"new_joint_angles: {new_joint_positions}")
+        arm_controller.set_joint_set_positions(smoothed_joint_positions)
+        arm_controller.set_positions()
+
+        joint_positions = list(smoothed_joint_positions)
 
         # Display the frame with detections
         cv2.imshow('Camera', img)
