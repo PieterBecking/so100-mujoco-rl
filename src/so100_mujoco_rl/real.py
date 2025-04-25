@@ -154,6 +154,14 @@ def run_look_at(
                     img, label_text, (x1, y1 + 14), cv2.FONT_HERSHEY_SIMPLEX, 0.5, c, 2
                 )
         
+        # Put label text
+        img = cv2.putText(
+            img, f"x = {obs_center_x_f:.2f}", (10, 20), cv2.FONT_HERSHEY_SIMPLEX, 0.8, (255, 0, 0), 2
+        )
+        img = cv2.putText(
+            img, f"y = {obs_center_y_f:.2f}", (10, 44), cv2.FONT_HERSHEY_SIMPLEX, 0.8, (255, 0, 0), 2
+        )
+
         # didn't get good results when using the actual positions returned from the real
         # robot. Hence why the following is commented out
         # arm_controller.update()
