@@ -110,6 +110,9 @@ def run_look_at(
                 x1, y1, x2, y2 = map(int, box.xyxy[0])
                 center_x = (x1 + x2) // 2
                 center_y = (y1 + y2) // 2
+                # need to flip the coordinates as the y axis is different for the
+                # offscreen renders that the policy was trained on
+                center_y = img.shape[0] - center_y
                 center_x_f = center_x / img.shape[1]
                 center_y_f = center_y / img.shape[0]
                 width = x2 - x1
