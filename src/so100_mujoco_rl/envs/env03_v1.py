@@ -294,14 +294,15 @@ class Env03(So100BaseEnv):
 
         if self.loop_count % self.frame_skip == 0:
             img = self.offscreen_viewer.render()
+            tracker_path = Path(__file__).parent / "tracker.yaml"
             results = self.yolo_model.track(
                 img,
                 persist=True,
                 device='mps',
                 verbose=False,
-                tracker="botsort.yaml",
+                tracker=str(tracker_path),
                 conf=0.25,
-                iou=0.3
+                iou=0.3,
             )
 
             for result in results:
