@@ -20,15 +20,15 @@ START_POSITION = [0.0, -2.04, 1.19, 1.5, -1.58, 0.5]
 
 # min xyz, and max xyz
 BLOCK_SPACE_START = [
-    [-0.05, -0.35, 0.01],
-    [0.05, -0.25, 0.01]
+    [-0.05, -0.4, 0.01],
+    [0.05, -0.3, 0.01]
 ]
 BLOCK_SPACE_END = [
     [-0.35, -0.45, 0.01],
-    [0.35, -0.15, 0.01]
+    [0.35, -0.25, 0.01]
 ]
-BLOCK_SPEED_MIN = 0.2
-BLOCK_SPEED_MAX = 3.0
+BLOCK_SPEED_MIN = 0.0
+BLOCK_SPEED_MAX = 2.0
 
 END_CAM_RES_WIDTH = 1080
 END_CAM_RES_HEIGHT = 1920
@@ -204,7 +204,7 @@ class Env03(So100BaseEnv):
 
     def step(self, a):
         # fraction increases from 0 to 1 over 6 seconds, doesn't exceed 1.0
-        sim_time_fraction = self.data.time / 6.0
+        sim_time_fraction = self.data.time / 12.0
         sim_time_fraction = min(sim_time_fraction, 1.0)
 
         self._update_block_space(sim_time_fraction)
