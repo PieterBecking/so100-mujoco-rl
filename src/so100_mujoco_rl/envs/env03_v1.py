@@ -256,6 +256,10 @@ class Env03(So100BaseEnv):
             reward += detected_distance_reward
             self.reward_components["r detected dist"] = detected_distance_reward
 
+        joint_reward = self._get_joint_reward()
+        reward += joint_reward
+        self.reward_components['rew joint'] = joint_reward
+
         self.last_reward = reward
 
         self.reward_components["terminated"] = terminated
