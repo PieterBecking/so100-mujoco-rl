@@ -234,7 +234,7 @@ class Env03(So100BaseEnv):
         obs_center_y_f = ob[-1]
         if obs_center_x_f == -1.0 and obs_center_y_f == -1.0:
             # nothing detected this time
-            if self.last_ob_center_count > 10:
+            if self.last_ob_center_count > 30:
                 # if we haven't detected anything for 10 steps, then terminate as we've lost
                 # the cube
                 terminated = True
@@ -311,10 +311,12 @@ class Env03(So100BaseEnv):
 
             for result in results:
                 for box in result.boxes:
+                    # if int(box.cls[0]) != 1:
+                    #     continue
                     confidence = box.conf[0]
-                    if confidence < 0.1:
+                    if confidence < 0.4:
                         continue
-                    if self.tracking_id is None and box.id is not None:
+                    if self.tracking_id is None and box.id is not None and confidence > 0.5:
                         self.tracking_id = box.id[0]
                     if self.tracking_id is not None and box.id is not None and box.id[0] != self.tracking_id:
                         continue
@@ -331,6 +333,9 @@ class Env03(So100BaseEnv):
                     obs_center_x_f = center_x_f
                     obs_center_y_f = center_y_f
 
+            if obs_center_x_f == -1.0 and obs_center_y_f == -1.0:
+                self.tracking_id = None
+
             self.cached_ob_center_x = obs_center_x_f
             self.cached_ob_center_y = obs_center_y_f
         else:
@@ -346,13 +351,19 @@ class Env03(So100BaseEnv):
                 results = []
             for result in results:
                 for box in result.boxes:
+                    # if int(box.cls[0]) != 1:
+                    #     continue
                     confidence = box.conf[0]
-                    if confidence < 0.1:
+                    if confidence < 0.4:
                         continue
-                    if self.tracking_id is not None and box.id is not None and box.id[0] != self.tracking_id:
+                    if int(box.cls[0]) != 1:
+                        c = (255, 255, 0)
+                    elif self.tracking_id is not None and box.id is not None and box.id[0] == self.tracking_id:
+                        c = (0, 255, 0)
+                    elif self.tracking_id is not None and box.id is not None and box.id[0] != self.tracking_id:
                         c = (255, 0, 0)
                     else:
-                        c = (0, 255, 0)
+                        c = (0, 0, 255)
                     x1, y1, x2, y2 = map(int, box.xyxy[0])
                     label = box.cls[0]
                     label_text = f"{self.yolo_model.names[int(label)]} {confidence:.2f}"
