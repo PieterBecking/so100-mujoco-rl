@@ -2585,7 +2585,7 @@ packages:
 - pypi: .
   name: so100-mujoco-rl
   version: 0.1.0
-  sha256: e12fa994f2c53d3b371089c57b382a5c6e2679b2d3e47a6947dc8bc4a0fb7428
+  sha256: 8ddb99a2889d339cfee2528159c8d1d2632f3ac4cb667e5b2b3c65864c8ae69c
   requires_dist:
   - requests>=2.32.3,<3
   - stable-baselines3>=2.6.0,<3

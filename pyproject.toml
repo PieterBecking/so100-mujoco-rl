@@ -31,4 +31,5 @@ so100_mujoco_rl = { path = ".", editable = true }
 [tool.pixi.tasks]
 download = { cmd = "python scripts/download.py" }
 main = { cmd = "python src/so100_mujoco_rl/main.py" }
+real = { cmd = "python src/so100_mujoco_rl/real.py" }
 tensorboard = { cmd = "tensorboard --logdir=logs" }

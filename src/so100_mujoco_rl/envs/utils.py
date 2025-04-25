@@ -75,7 +75,7 @@ def joints_from_model(model: mujoco.MjModel) -> list[Joint]:
         name = mujoco.mj_id2name(model, mujoco.mjtObj.mjOBJ_JOINT, i)
         # there are other  non-so100 joints in the mujoco model
         # like the block free joints
-        if name.startswith(MUJOCO_SO100_PREFIX):
+        if name.startswith(MUJOCO_SO100_PREFIX) and 'end_point_joint' not in name:
             name = name[len(MUJOCO_SO100_PREFIX):]
             joint_names.append(name)
 
