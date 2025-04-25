@@ -104,7 +104,7 @@ class Env03(So100BaseEnv):
 
         # load the YOLO model
         current_dir = Path(__file__).parent
-        model_path = current_dir / "detect_models" / "best.pt"
+        model_path = current_dir / "detect_models" / "best_sim.pt"
         self.yolo_model = YOLO(str(model_path))
 
         self.data.joint('block_a_joint').qpos[0:3] = self.block_target
