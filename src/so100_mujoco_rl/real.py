@@ -1,3 +1,5 @@
+import queue
+import threading
 import time
 from pathlib import Path
 
@@ -11,6 +13,149 @@ from ultralytics import YOLO
 import so100_mujoco_rl
 from so100_mujoco_rl.arm_control import So100ArmController
 from so100_mujoco_rl.envs.utils import JOINT_STEP_SCALE
+
+
+# Shared queues
+frame_queue = queue.Queue(maxsize=1)
+detection_queue = queue.Queue(maxsize=1)
+display_queue = queue.Queue(maxsize=1)
+
+
+# Thread 1: Frame capture
+def capture_frames(rotate: bool):
+    cap = cv2.VideoCapture(0)
+    cap.set(cv2.CAP_PROP_FPS, 30)
+    cap.set(cv2.CAP_PROP_FRAME_WIDTH, 640)
+    cap.set(cv2.CAP_PROP_FRAME_HEIGHT, 480)
+    while True:
+        time.sleep(0.001)
+        ret, frame = cap.read()
+        if not ret or frame is None:
+            print("Frame capture failed")
+            continue
+        # Rotate the frame 90 degrees if specified
+        if rotate:
+            frame = cv2.rotate(frame, cv2.ROTATE_90_CLOCKWISE)
+        if ret:
+            if not frame_queue.full():
+                frame_queue.put(frame)
+            else:
+                print("Frame queue is full, skipping frame")
+
+
+# Thread 2: Object detection
+def object_detection(object_detection_model_path: str, device: str):
+    prev_frame_time = 0
+    model = YOLO(object_detection_model_path)
+    cached_ob_center_x = 0.5
+    cached_ob_center_y = 0.5
+    tracking_id = None
+    tracker_path = Path(__file__).parent / "envs" / "tracker.yaml"
+    fps_alpha = 0.1  # Smoothing factor for FPS
+    smoothed_fps = 0  # Initialize smoothed FPS
+    while True:
+        time.sleep(0.001)
+        if not frame_queue.empty():
+            current_frame_time = time.time()
+            raw_fps = 1 / (current_frame_time - prev_frame_time) if prev_frame_time != 0 else 0
+            prev_frame_time = current_frame_time
+            # Apply high-pass filter to FPS
+            smoothed_fps = fps_alpha * raw_fps + (1 - fps_alpha) * smoothed_fps
+            fps = smoothed_fps
+
+            frame = frame_queue.get()
+
+            results = model.track(
+                frame,
+                persist=True,
+                device=device,
+                verbose=False,
+                tracker=str(tracker_path),
+                conf=0.25,
+                iou=0.3,
+            )
+
+            obs_center_x_f = -1.0
+            obs_center_y_f = -1.0
+
+            for result in results:
+                for box in result.boxes:
+                    # if int(box.cls[0]) != 1:
+                    #     continue
+                    confidence = box.conf[0]
+                    if confidence < 0.4:
+                        continue
+                    if tracking_id is None and box.id is not None and confidence > 0.5:
+                        tracking_id = box.id[0]
+                    if tracking_id is not None and box.id is not None and box.id[0] != tracking_id:
+                        continue
+                    x1, y1, x2, y2 = map(int, box.xyxy[0])
+                    center_x = (x1 + x2) // 2
+                    center_y = (y1 + y2) // 2
+                    # need to flip the coordinates as the y axis is different for the
+                    # offscreen renders that the policy was trained on
+                    center_y = frame.shape[0] - center_y
+                    center_x_f = center_x / frame.shape[1]
+                    center_y_f = center_y / frame.shape[0]
+                    width = x2 - x1
+                    height = y2 - y1
+                    width_f = width / frame.shape[1]
+                    height_f = height / frame.shape[0]
+
+                    obs_center_x_f = center_x_f
+                    obs_center_y_f = center_y_f
+                    cached_ob_center_x = center_x_f
+                    cached_ob_center_y = center_y_f
+
+            if obs_center_x_f == -1.0 and obs_center_y_f == -1.0:
+                tracking_id = None
+
+            for result in results:
+                for box in result.boxes:
+                    # if int(box.cls[0]) != 1:
+                    #     continue
+                    confidence = box.conf[0]
+                    if confidence < 0.4:
+                        continue
+                    if int(box.cls[0]) != 0:
+                        c = (255, 255, 0)
+                    elif tracking_id is not None and box.id is not None and box.id[0] == tracking_id:
+                        c = (0, 255, 0)
+                    elif tracking_id is not None and box.id is not None and box.id[0] != tracking_id:
+                        c = (255, 0, 0)
+                    else:
+                        c = (0, 0, 255)
+                    x1, y1, x2, y2 = map(int, box.xyxy[0])
+                    label = box.cls[0]
+                    label_text = f"{model.names[int(label)]} {confidence:.2f}"
+
+                    # Draw bounding box
+                    frame = cv2.rectangle(frame, (x1, y1), (x2, y2), c, 2)
+                    # Put label text
+                    frame = cv2.putText(
+                        frame, label_text, (x1, y1 + 14), cv2.FONT_HERSHEY_SIMPLEX, 0.5, c, 2
+                    )
+
+            # Put label text
+            frame = cv2.putText(
+                frame, f"x = {obs_center_x_f:.2f}", (10, 40), cv2.FONT_HERSHEY_SIMPLEX, 1.6, (255, 0, 0), 2
+            )
+            frame = cv2.putText(
+                frame, f"y = {obs_center_y_f:.2f}", (10, 88), cv2.FONT_HERSHEY_SIMPLEX, 1.6, (255, 0, 0), 2
+            )
+            frame = cv2.putText(
+                frame, f"FPS: {fps:.2f}", (10, 68*2), cv2.FONT_HERSHEY_SIMPLEX, 1.6, (255, 0, 0), 2
+            )
+
+            # Send to both policy and display
+            if not detection_queue.full():
+                detection = [
+                    cached_ob_center_x,
+                    cached_ob_center_y
+                ]
+                detection_queue.put(detection)
+            if not display_queue.full():
+                display_queue.put(frame)
 
 
 @click.command(name="look-at", help="Uses a trained YOLO model to detect objects in web camera feed")
@@ -51,13 +196,6 @@ def run_look_at(
     click.echo("Source: {}".format(source))
     click.echo("Press 'q' to quit")
 
-    cam = cv2.VideoCapture(source)
-
-    model = YOLO(object_detection_model_path)
-    tracker_path = Path(__file__).parent / "envs" / "tracker.yaml"
-    # id of the cube currently being tracked
-    tracking_id = None
-
     algorithm_class = getattr(stable_baselines3, algorithm, None)
     env = gym.make(environment, render_mode='human')
     policy = algorithm_class.load(robot_policy_path, env=env)
@@ -70,151 +208,55 @@ def run_look_at(
     arm_controller.update()
     joint_positions = arm_controller.joint_actual_positions
 
-    cached_ob_center_x = 0.5
-    cached_ob_center_y = 0.5
-
-    prev_frame_time = 0
+    # Launch threads
+    threading.Thread(target=capture_frames, args=(rotate,), daemon=True).start()
+    threading.Thread(target=object_detection, args=(object_detection_model_path, device,), daemon=True).start()
 
     while True:
-        # Calculate FPS
-        current_frame_time = time.time()
-        fps = 1 / (current_frame_time - prev_frame_time) if prev_frame_time != 0 else 0
-        prev_frame_time = current_frame_time
+        time.sleep(0.001)
+        if not display_queue.empty():
+            frame = display_queue.get()
+            # frame = cv2.resize(frame, (frame.shape[1] // 2, frame.shape[0] // 2))
 
-        ret, img = cam.read()
+            # can only be done in the main thread
+            cv2.imshow('Camera', frame)
 
-        if not ret:
-            break
+            # Check for key presses
+            key = cv2.waitKey(1)
+            if key == ord('q'):  # Press 'q' to exit the loop
+                break
 
-        # Rotate the frame 90 degrees if specified
-        if rotate:
-            img = cv2.rotate(img, cv2.ROTATE_90_CLOCKWISE)
+        if not detection_queue.empty():
+            # something in this block causes the python interpreter to crash when running
+            # in another non-main thread
+            detection = detection_queue.get()
 
-        results = model.track(
-            img,
-            persist=True,
-            device=device,
-            verbose=False,
-            tracker=str(tracker_path),
-            conf=0.25,
-            iou=0.3,
-        )
+            obs = [
+                *joint_positions,
+                detection[0] * 5.0,
+                detection[1] * 5.0,
+            ]
 
-        obs_center_x_f = -1.0
-        obs_center_y_f = -1.0
+            # get the actions from the policy
+            a, _ = policy.predict(obs)
 
-        for result in results:
-            for box in result.boxes:
-                # if int(box.cls[0]) != 1:
-                #     continue
-                confidence = box.conf[0]
-                if confidence < 0.4:
-                    continue
-                if tracking_id is None and box.id is not None and confidence > 0.5:
-                    tracking_id = box.id[0]
-                if tracking_id is not None and box.id is not None and box.id[0] != tracking_id:
-                    continue
-                x1, y1, x2, y2 = map(int, box.xyxy[0])
-                center_x = (x1 + x2) // 2
-                center_y = (y1 + y2) // 2
-                # need to flip the coordinates as the y axis is different for the
-                # offscreen renders that the policy was trained on
-                center_y = img.shape[0] - center_y
-                center_x_f = center_x / img.shape[1]
-                center_y_f = center_y / img.shape[0]
-                width = x2 - x1
-                height = y2 - y1
-                width_f = width / img.shape[1]
-                height_f = height / img.shape[0]
+            new_joint_positions = [
+                joint_positions[i] + float(a[i]) * JOINT_STEP_SCALE for i in range(len(joint_positions))
+            ]
 
-                obs_center_x_f = center_x_f
-                obs_center_y_f = center_y_f
-                cached_ob_center_x = center_x_f
-                cached_ob_center_y = center_y_f
+            # Apply a high-pass filter to smooth the joint positions
+            alpha = 0.2  # Smoothing factor (adjust as needed)
+            smoothed_joint_positions = [
+                alpha * new_joint_positions[i] + (1 - alpha) * joint_positions[i]
+                for i in range(len(joint_positions))
+            ]
+            # print(f"old_joint_angles: {joint_positions}")
+            # print(f"new_joint_angles: {new_joint_positions}")
+            arm_controller.set_joint_set_positions(smoothed_joint_positions)
+            arm_controller.set_positions()
 
-        if obs_center_x_f == -1.0 and obs_center_y_f == -1.0:
-            tracking_id = None
+            joint_positions = list(smoothed_joint_positions)
 
-        for result in results:
-            for box in result.boxes:
-                # if int(box.cls[0]) != 1:
-                #     continue
-                confidence = box.conf[0]
-                if confidence < 0.4:
-                    continue
-                if int(box.cls[0]) != 0:
-                    c = (255, 255, 0)
-                elif tracking_id is not None and box.id is not None and box.id[0] == tracking_id:
-                    c = (0, 255, 0)
-                elif tracking_id is not None and box.id is not None and box.id[0] != tracking_id:
-                    c = (255, 0, 0)
-                else:
-                    c = (0, 0, 255)
-                x1, y1, x2, y2 = map(int, box.xyxy[0])
-                label = box.cls[0]
-                label_text = f"{model.names[int(label)]} {confidence:.2f}"
-
-                # Draw bounding box
-                img = cv2.rectangle(img, (x1, y1), (x2, y2), c, 2)
-                # Put label text
-                img = cv2.putText(
-                    img, label_text, (x1, y1 + 14), cv2.FONT_HERSHEY_SIMPLEX, 0.5, c, 2
-                )
-        
-        # Put label text
-        img = cv2.putText(
-            img, f"x = {obs_center_x_f:.2f}", (10, 20), cv2.FONT_HERSHEY_SIMPLEX, 0.8, (255, 0, 0), 2
-        )
-        img = cv2.putText(
-            img, f"y = {obs_center_y_f:.2f}", (10, 44), cv2.FONT_HERSHEY_SIMPLEX, 0.8, (255, 0, 0), 2
-        )
-
-        img = cv2.putText(
-            img, f"FPS: {fps:.2f}", (10, 68), cv2.FONT_HERSHEY_SIMPLEX, 0.8, (0, 255, 0), 2
-        )
-
-        # print(f"FPS: {fps:.2f}")
-
-        # didn't get good results when using the actual positions returned from the real
-        # robot. Hence why the following is commented out
-        # arm_controller.update()
-        # joint_positions = arm_controller.joint_actual_positions
-        obs = [
-            *joint_positions,
-            cached_ob_center_x,
-            cached_ob_center_y * 1.0,
-        ]
-
-        # get the actions from the policy
-        a, _ = policy.predict(obs)
-
-        new_joint_positions = [
-            joint_positions[i] + float(a[i]) * JOINT_STEP_SCALE for i in range(len(joint_positions))
-        ]
-
-        # Apply a high-pass filter to smooth the joint positions
-        alpha = 0.2  # Smoothing factor (adjust as needed)
-        smoothed_joint_positions = [
-            alpha * new_joint_positions[i] + (1 - alpha) * joint_positions[i]
-            for i in range(len(joint_positions))
-        ]
-        # print(f"old_joint_angles: {joint_positions}")
-        # print(f"new_joint_angles: {new_joint_positions}")
-        arm_controller.set_joint_set_positions(smoothed_joint_positions)
-        arm_controller.set_positions()
-
-        joint_positions = list(smoothed_joint_positions)
-
-        # Display the frame with detections
-        cv2.imshow('Camera', img)
-
-        # Check for key presses
-        key = cv2.waitKey(1)
-        if key == ord('q'):  # Press 'q' to exit the loop
-            break
-
-    # Release the capture object
-    cam.release()
     cv2.destroyAllWindows()
 
 
@@ -222,8 +264,8 @@ def run_look_at(
 def cli():
     pass
 
-cli.add_command(run_look_at)
 
+cli.add_command(run_look_at)
 
 
 if __name__ == '__main__':
