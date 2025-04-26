@@ -73,7 +73,14 @@ def run_look_at(
     cached_ob_center_x = 0.5
     cached_ob_center_y = 0.5
 
+    prev_frame_time = 0
+
     while True:
+        # Calculate FPS
+        current_frame_time = time.time()
+        fps = 1 / (current_frame_time - prev_frame_time) if prev_frame_time != 0 else 0
+        prev_frame_time = current_frame_time
+
         ret, img = cam.read()
 
         if not ret:
@@ -161,6 +168,12 @@ def run_look_at(
         img = cv2.putText(
             img, f"y = {obs_center_y_f:.2f}", (10, 44), cv2.FONT_HERSHEY_SIMPLEX, 0.8, (255, 0, 0), 2
         )
+
+        img = cv2.putText(
+            img, f"FPS: {fps:.2f}", (10, 68), cv2.FONT_HERSHEY_SIMPLEX, 0.8, (0, 255, 0), 2
+        )
+
+        # print(f"FPS: {fps:.2f}")
 
         # didn't get good results when using the actual positions returned from the real
         # robot. Hence why the following is commented out
