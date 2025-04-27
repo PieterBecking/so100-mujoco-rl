@@ -224,6 +224,9 @@ def run_look_at(
             # Check for key presses
             key = cv2.waitKey(1)
             if key == ord('q'):  # Press 'q' to exit the loop
+                # disables torque, so robot can be moved by hand
+                arm_controller.primary = True
+                arm_controller._primary_set()
                 break
 
         if not detection_queue.empty():
