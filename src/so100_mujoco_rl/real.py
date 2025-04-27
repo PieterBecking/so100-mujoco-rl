@@ -14,11 +14,17 @@ import so100_mujoco_rl
 from so100_mujoco_rl.arm_control import So100ArmController
 from so100_mujoco_rl.envs.utils import JOINT_STEP_SCALE
 
+# Minimum time between steps in seconds
+# we use this to try for a consistent time step fixed to the timestep that
+# was used to train the policy
+MIN_STEP_TIME = 0.035  
+
 
 # Shared queues
 frame_queue = queue.Queue(maxsize=1)
 detection_queue = queue.Queue(maxsize=1)
 display_queue = queue.Queue(maxsize=1)
+joint_positions_queue = queue.Queue(maxsize=1)
 
 
 # Thread 1: Frame capture
@@ -27,12 +33,22 @@ def capture_frames(rotate: bool):
     cap.set(cv2.CAP_PROP_FPS, 30)
     cap.set(cv2.CAP_PROP_FRAME_WIDTH, 640)
     cap.set(cv2.CAP_PROP_FRAME_HEIGHT, 480)
+
+    prev_frame_time = time.time() - MIN_STEP_TIME
     while True:
-        time.sleep(0.001)
+        time.sleep(0.0001)
         ret, frame = cap.read()
         if not ret or frame is None:
             print("Frame capture failed")
             continue
+
+        current_frame_time = time.time()
+        dt = current_frame_time - prev_frame_time
+        if dt < MIN_STEP_TIME:
+            time.sleep(MIN_STEP_TIME - dt)
+            current_frame_time += (MIN_STEP_TIME - dt)
+        prev_frame_time = current_frame_time
+
         # Rotate the frame 90 degrees if specified
         if rotate:
             frame = cv2.rotate(frame, cv2.ROTATE_90_CLOCKWISE)
@@ -45,7 +61,6 @@ def capture_frames(rotate: bool):
 
 # Thread 2: Object detection
 def object_detection(object_detection_model_path: str, device: str):
-    prev_frame_time = 0
     model = YOLO(object_detection_model_path)
     cached_ob_center_x = 0.5
     cached_ob_center_y = 0.5
@@ -53,17 +68,25 @@ def object_detection(object_detection_model_path: str, device: str):
     tracker_path = Path(__file__).parent / "envs" / "tracker.yaml"
     fps_alpha = 0.1  # Smoothing factor for FPS
     smoothed_fps = 0  # Initialize smoothed FPS
+
+    prev_frame_time = time.time() - MIN_STEP_TIME
     while True:
-        time.sleep(0.001)
+        time.sleep(0.0001)
         if not frame_queue.empty():
+            frame = frame_queue.get()
+
             current_frame_time = time.time()
+            dt = current_frame_time - prev_frame_time
+            if dt < MIN_STEP_TIME:
+                time.sleep(MIN_STEP_TIME - dt)
+                current_frame_time += (MIN_STEP_TIME - dt)
+
             raw_fps = 1 / (current_frame_time - prev_frame_time) if prev_frame_time != 0 else 0
+            # print(f"FPS: {raw_fps:.2f}")
             prev_frame_time = current_frame_time
             # Apply high-pass filter to FPS
             smoothed_fps = fps_alpha * raw_fps + (1 - fps_alpha) * smoothed_fps
             fps = smoothed_fps
-
-            frame = frame_queue.get()
 
             results = model.track(
                 frame,
@@ -158,6 +181,53 @@ def object_detection(object_detection_model_path: str, device: str):
                 display_queue.put(frame)
 
 
+def rl_policy(
+    policy,
+    joint_positions
+):
+    prev_frame_time = time.time() - 0.0333
+
+    while True:
+        time.sleep(0.0001)
+
+        if not detection_queue.empty():
+            detection = detection_queue.get()
+
+            current_frame_time = time.time()
+            dt = current_frame_time - prev_frame_time
+            if dt < MIN_STEP_TIME:
+                time.sleep(MIN_STEP_TIME - dt)
+                current_frame_time += (MIN_STEP_TIME - dt)
+
+            obs = [
+                *joint_positions,
+                detection[0] * 5.0,
+                detection[1] * 5.0,
+            ]
+
+            # get the actions from the policy
+            a, _ = policy.predict(obs)
+
+            joint_positions = list(joint_positions)
+
+            new_joint_positions = [
+                joint_positions[i] + float(a[i]) * JOINT_STEP_SCALE for i in range(len(joint_positions))
+            ]
+
+            # Apply a high-pass filter to smooth the joint positions
+            alpha = 0.2  # Smoothing factor (adjust as needed)
+            smoothed_joint_positions = [
+                alpha * new_joint_positions[i] + (1 - alpha) * joint_positions[i]
+                for i in range(len(joint_positions))
+            ]
+
+            if not joint_positions_queue.full():
+                joint_positions_queue.put(smoothed_joint_positions)
+
+            joint_positions = list(smoothed_joint_positions)
+
+
+
 @click.command(name="look-at", help="Uses a trained YOLO model to detect objects in web camera feed")
 @click.option('-r', '--rotate', is_flag=True, help="Rotate the web camera 90 degrees (default: False)")
 @click.option('-s', '--source', default=0, type=int, help="Web camera source (default: 0)")
@@ -212,11 +282,14 @@ def run_look_at(
     threading.Thread(target=capture_frames, args=(rotate,), daemon=True).start()
     threading.Thread(target=object_detection, args=(object_detection_model_path, device,), daemon=True).start()
 
+    threading.Thread(target=rl_policy, args=(policy,joint_positions,), daemon=True).start()
+
+    prev_frame_time = time.time() - MIN_STEP_TIME
+
     while True:
-        time.sleep(0.001)
+        time.sleep(0.0001)
         if not display_queue.empty():
             frame = display_queue.get()
-            # frame = cv2.resize(frame, (frame.shape[1] // 2, frame.shape[0] // 2))
 
             # can only be done in the main thread
             cv2.imshow('Camera', frame)
@@ -229,36 +302,18 @@ def run_look_at(
                 arm_controller._primary_set()
                 break
 
-        if not detection_queue.empty():
+        if not joint_positions_queue.empty():
             # something in this block causes the python interpreter to crash when running
             # in another non-main thread
-            detection = detection_queue.get()
+            joint_positions = joint_positions_queue.get()
+            current_frame_time = time.time()
+            dt = current_frame_time - prev_frame_time
+            if dt < MIN_STEP_TIME:
+                time.sleep(MIN_STEP_TIME - dt)
+                current_frame_time += (MIN_STEP_TIME - dt)
 
-            obs = [
-                *joint_positions,
-                detection[0] * 5.0,
-                detection[1] * 5.0,
-            ]
-
-            # get the actions from the policy
-            a, _ = policy.predict(obs)
-
-            new_joint_positions = [
-                joint_positions[i] + float(a[i]) * JOINT_STEP_SCALE for i in range(len(joint_positions))
-            ]
-
-            # Apply a high-pass filter to smooth the joint positions
-            alpha = 0.2  # Smoothing factor (adjust as needed)
-            smoothed_joint_positions = [
-                alpha * new_joint_positions[i] + (1 - alpha) * joint_positions[i]
-                for i in range(len(joint_positions))
-            ]
-            # print(f"old_joint_angles: {joint_positions}")
-            # print(f"new_joint_angles: {new_joint_positions}")
-            arm_controller.set_joint_set_positions(smoothed_joint_positions)
+            arm_controller.set_joint_set_positions(joint_positions)
             arm_controller.set_positions()
-
-            joint_positions = list(smoothed_joint_positions)
 
     cv2.destroyAllWindows()
 
