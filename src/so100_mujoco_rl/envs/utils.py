@@ -2,7 +2,6 @@ from dataclasses import dataclass
 
 import mujoco
 
-
 # this is the prefix we use when attaching the so-arm100 model into
 # the `sim_scene.xml` file.
 MUJOCO_SO100_PREFIX = "so100_"
@@ -89,3 +88,60 @@ def joints_from_model(model: mujoco.MjModel) -> list[Joint]:
         joints.append(j)
     return joints
 
+
+import glfw
+import mujoco
+import numpy as np
+from gymnasium.envs.mujoco.mujoco_rendering import OffScreenViewer
+
+from so100_mujoco_rl.envs.utils import MUJOCO_SO100_PREFIX
+
+
+# The Gymnasium offscreen renderer doesn't quite work the way we need. It seems
+# to not fix the camera to the end of the arm. Also doesn't quite respect the width
+# and height we give it.
+# Here we make a few changes so it does work the way we need
+class EndCamOffScreenViewer(OffScreenViewer):
+
+    def __init__(self, width, height, model, data):
+        # these two lines are important
+        # it uses these values when creating a new context for the offscreen
+        # rendering
+        old_w, old_h = model.vis.global_.offwidth, model.vis.global_.offheight
+        model.vis.global_.offwidth = width
+        model.vis.global_.offheight = height
+
+        super().__init__(model, data, width, height)
+
+        self._cam = self.get_end_camera()
+
+        model.vis.global_.offwidth = old_w
+        model.vis.global_.offheight = old_h
+
+        self.old_con = None
+
+    def get_end_camera(self):
+        cam = mujoco.MjvCamera()
+        cam.type = mujoco.mjtCamera.mjCAMERA_FIXED
+        # name in so_arm100.xml is end_point_camera, but it gets given the so100_ prefix
+        # when imported as an asset
+        cam.fixedcamid = self.model.camera("so100_end_point_camera").id
+        return cam
+
+    def render(self):
+        # we get issues with onscreen and offscreen rendering if we don't manage which context is
+        # current. So stash whateved context is current, and restore that after we do the offscreen
+        # rendering.
+        self.old_con = glfw.get_current_context()
+        self.make_context_current()
+
+        # do the offscreen rendering
+        mujoco.mjv_updateScene(self.model, self.data, self.vopt, None, self._cam, mujoco.mjtCatBit.mjCAT_ALL, self.scn)
+        r = mujoco.mjr_render(self.viewport, self.scn, self.con)
+        image = np.zeros((self.viewport.height, self.viewport.width, 3), dtype=np.uint8)
+        mujoco.mjr_readPixels(image, None, self.viewport, self.con)
+
+        # restore the old context
+        glfw.make_context_current(self.old_con)
+
+        return image

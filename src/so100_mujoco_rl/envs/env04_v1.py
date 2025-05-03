@@ -1,11 +1,8 @@
-
-import math
 import os
 import time
 from pathlib import Path
 
 import cv2
-import glfw
 import mujoco
 import numpy as np
 from gymnasium.envs.mujoco.mujoco_rendering import OffScreenViewer
@@ -15,7 +12,11 @@ from ultralytics import YOLO
 
 from so100_mujoco_rl.envs.env03_v1 import EndCamOffScreenViewer
 from so100_mujoco_rl.envs.env_base_01 import So100BaseEnv
-from so100_mujoco_rl.envs.utils import JOINT_STEP_SCALE, MUJOCO_SO100_PREFIX
+from so100_mujoco_rl.envs.utils import (
+    JOINT_STEP_SCALE,
+    MUJOCO_SO100_PREFIX,
+    EndCamOffScreenViewer
+)
 
 START_POSITION = [0.0, -2.04, 1.19, 1.5, -1.58, 0.5]
 
