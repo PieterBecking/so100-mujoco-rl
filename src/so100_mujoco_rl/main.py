@@ -15,6 +15,7 @@ from stable_baselines3.common.callbacks import (
 )
 from stable_baselines3.common.monitor import Monitor
 from stable_baselines3.common.noise import NormalActionNoise
+from stable_baselines3.common.vec_env import VecVideoRecorder, DummyVecEnv
 
 # while not called directly, we need to import this so the environments are registered
 import so100_mujoco_rl
@@ -123,6 +124,53 @@ def test(ctx: dict, environment: str, show_io: bool, show_i: bool):
         run_loop_count += 1
 
 
+@click.command(name="record", help="Record a model with a given environment")
+@click.option('-e', '--environment', required=True, type=str, help="id of Gymnasium environment (eg; Env01-v1)")
+@click.pass_context
+def record(ctx: dict, environment: str):
+    vec_env = DummyVecEnv([lambda: gym.make(environment, render_mode="rgb_array")])
+
+    algorithm_name = ctx.obj['ALGORITHM_NAME']
+
+    model_file = ctx.obj['MODEL_PATH']
+    if model_file is None:
+        # then assume default name
+        model_file = os.path.join(MODEL_DIR, f"{environment}_{algorithm_name}", "best_model.zip")
+
+    if not os.path.isfile(model_file):
+        raise RuntimeError(f"Could not open model file: {model_file}")
+
+    logger.info(f"Starting test simulation for recording")
+    logger.info(f"Algorithm: {algorithm_name}")
+    logger.info(f"Environment: {environment}")
+    logger.info(f"Model: {model_file}")
+
+    algorithm_class = getattr(stable_baselines3, algorithm_name, None)
+    model = algorithm_class.load(model_file, env=vec_env)
+
+    video_length = 3000
+
+    # Record the video starting at the first step
+    vec_env = VecVideoRecorder(
+        vec_env,
+        RECORDING_DIR,
+        record_video_trigger=lambda x: x == 0,
+        video_length=video_length,
+        name_prefix=f"rec-{environment}"
+    )
+
+    obs = vec_env.reset()
+    vec_env.reset()
+
+    with click.progressbar(length=video_length + 1, label="Recording video") as bar:
+        for _ in bar:
+            action, _ = model.predict(obs)
+            obs, _, terminated, truncated = vec_env.step(action)
+
+    # Save the video
+    vec_env.close()
+
+
 @click.command(name="train", help="Train a model with a given environment")
 @click.option('-e', '--environment', required=True, type=str, help="id of Gymnasium environment (eg; Env01-v1)")
 @click.pass_context
@@ -219,6 +267,7 @@ def cli(ctx: dict, algorithm: str, model: str | os.PathLike):
     ctx.obj['MODEL_PATH'] = model
 
 
+cli.add_command(record)
 cli.add_command(test)
 cli.add_command(train)
 
