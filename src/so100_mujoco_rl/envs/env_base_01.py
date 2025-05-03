@@ -29,7 +29,7 @@ class So100BaseEnv(MujocoEnv, utils.EzPickle):
             "rgb_array",
             "depth_array",
         ],
-        "render_fps": 100,
+        "render_fps": 31,
     }
 
     def __init__(self, env_filename: str, **kwargs):
@@ -42,7 +42,7 @@ class So100BaseEnv(MujocoEnv, utils.EzPickle):
         MujocoEnv.__init__(
             self,
             str(pathlib.Path(__file__).parent.joinpath(env_filename)),
-            5,
+            16,
             observation_space=observation_space,
             default_camera_config=DEFAULT_CAMERA_CONFIG,
             width=800,
