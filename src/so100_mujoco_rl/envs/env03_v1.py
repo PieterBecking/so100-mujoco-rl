@@ -167,21 +167,6 @@ class Env03(So100BaseEnv):
             # Update the block position
             self.data.joint('block_a_joint').qpos[0:3] = new_block_pos
 
-    def _calculate_angular_velocity_penalty(self, joint_angles, last_joint_angles, timestep):
-        penalty = 0.0
-        angular_velocities = [
-            (joint_angles[i] - last_joint_angles[i]) / timestep for i in range(len(joint_angles))
-        ]
-        if hasattr(self, "last_angular_velocities"):
-            for i in range(len(angular_velocities)):
-                # Calculate the change in angular velocity
-                delta_angular_velocity = angular_velocities[i] - self.last_angular_velocities[i]
-                # Penalize based on the magnitude of the change
-                penalty += abs(delta_angular_velocity) * 0.0025
-        # Store the current angular velocities for the next step
-        self.last_angular_velocities = angular_velocities
-        return -penalty
-
     def get_joint_angles(self):
         return self.last_joint_angles
 
