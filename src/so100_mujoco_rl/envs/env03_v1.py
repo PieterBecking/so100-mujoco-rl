@@ -146,7 +146,18 @@ class Env03(So100BaseEnv):
         return observation_space
 
     def render(self):
-        return super().render()
+        r = super().render()
+        if self.last_offscreen_render is not None and self.render_mode == "rgb_array":
+            # overlay the last offscreen render on the bottom right of the image
+            # only works when doing an rgb render (not human)
+            overlay = cv2.resize(
+                self.last_offscreen_render,
+                (self.last_offscreen_render.shape[1] // 4, self.last_offscreen_render.shape[0] // 4),
+                interpolation=cv2.INTER_LINEAR
+            )
+            overlay = np.flipud(overlay)
+            r[-overlay.shape[0]:, :overlay.shape[1]] = overlay
+        return r
 
     def _update_block_space(self, sim_time_fraction: float):
         # Interpolate box_space_min and box_space_max based on sim_time_fraction
@@ -296,8 +307,9 @@ class Env03(So100BaseEnv):
         obs_center_x_f = -1.0
         obs_center_y_f = -1.0
 
-        if self.loop_count % self.frame_skip == 0:
+        if True:
             img = self.offscreen_viewer.render()
+            self.last_offscreen_render = img
             tracker_path = Path(__file__).parent / "tracker.yaml"
             results = self.yolo_model.track(
                 img,
@@ -343,8 +355,7 @@ class Env03(So100BaseEnv):
             obs_center_x_f = self.cached_ob_center_x
             obs_center_y_f = self.cached_ob_center_y
 
-        # if  int(time.time() * 1000) - self.last_image_save_time > 1000:
-        if False and self.loop_count % self.frame_skip == 0:
+        if True:
             # print(results)
             # Draw detections back into the image
             if results is None:
@@ -368,14 +379,19 @@ class Env03(So100BaseEnv):
                     label = box.cls[0]
                     label_text = f"{self.yolo_model.names[int(label)]} {confidence:.2f}"
 
+                    # Draw a red crosshair in the middle of the frame
+                    center_x = img.shape[1] // 2
+                    center_y = img.shape[0] // 2
+                    img = cv2.line(img, (center_x - 20, center_y), (center_x + 20, center_y), (255, 0, 0), 4)
+                    img = cv2.line(img, (center_x, center_y - 20), (center_x, center_y + 20), (255, 0, 0), 4)
+
                     # Draw bounding box
-                    img = cv2.rectangle(img, (x1, y1), (x2, y2), c, 2)
+                    img = cv2.rectangle(img, (x1, y1), (x2, y2), c, 4)
                     # Put label text
                     img = cv2.putText(
-                        img, label_text, (x1, y1 + 14), cv2.FONT_HERSHEY_SIMPLEX, 0.5, c, 2
+                        img, label_text, (x1, y1 + 14), cv2.FONT_HERSHEY_SIMPLEX, 1.0, c, 2
                     )
 
-            self.__save_render(img)
             self.last_image_save_time = int(time.time() * 1000)
 
         joint_angles = self.get_joint_angles()
