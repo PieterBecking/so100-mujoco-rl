@@ -85,12 +85,6 @@ class So100OffscreenBaseEnv(So100BaseEnv):
     def get_joint_angles(self):
         return self.last_joint_angles
 
-    def get_end_camera(self):
-        cam = mujoco.MjvCamera()
-        cam.type = mujoco.mjtCamera.mjCAMERA_FIXED
-        cam.fixedcamid = 0
-        return cam
-
     def _get_obs(self):
         obs_center_x_f = -1.0
         obs_center_y_f = -1.0
