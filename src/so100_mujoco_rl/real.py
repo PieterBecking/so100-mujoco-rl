@@ -108,7 +108,7 @@ def object_detection(object_detection_model_path: str, device: str):
                     confidence = box.conf[0]
                     if confidence < 0.4:
                         continue
-                    if tracking_id is None and box.id is not None and confidence > 0.5:
+                    if tracking_id is None and box.id is not None and confidence > 0.8:
                         tracking_id = box.id[0]
                     if tracking_id is not None and box.id is not None and box.id[0] != tracking_id:
                         continue
@@ -158,6 +158,12 @@ def object_detection(object_detection_model_path: str, device: str):
                     frame = cv2.putText(
                         frame, label_text, (x1, y1 + 14), cv2.FONT_HERSHEY_SIMPLEX, 0.5, c, 2
                     )
+
+            # Draw a red crosshair in the middle of the frame
+            center_x = frame.shape[1] // 2
+            center_y = frame.shape[0] // 2
+            frame = cv2.line(frame, (center_x - 10, center_y), (center_x + 10, center_y), (0, 0, 255), 2)
+            frame = cv2.line(frame, (center_x, center_y - 10), (center_x, center_y + 10), (0, 0, 255), 2)
 
             # Put label text
             frame = cv2.putText(
@@ -215,7 +221,7 @@ def rl_policy(
             ]
 
             # Apply a high-pass filter to smooth the joint positions
-            alpha = 0.2  # Smoothing factor (adjust as needed)
+            alpha = 0.6  # Smoothing factor (adjust as needed)
             smoothed_joint_positions = [
                 alpha * new_joint_positions[i] + (1 - alpha) * joint_positions[i]
                 for i in range(len(joint_positions))
