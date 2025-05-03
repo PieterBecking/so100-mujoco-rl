@@ -140,7 +140,7 @@ class Env03(So100BaseEnv):
         # detected object bbox center Y (as a fraction of the image height)
         observation_space = Box(
             np.array([*mins, 0.0, 0.0]),
-            np.array([*maxs, 1.0, 1.0]),
+            np.array([*maxs, 5.0, 5.0]),
             dtype=np.float32
         )
         return observation_space
@@ -274,6 +274,9 @@ class Env03(So100BaseEnv):
         self.last_reward = reward
 
         self.reward_components["terminated"] = terminated
+
+        ob[-2] = 5 * ob[-2]
+        ob[-1] = 5 * ob[-1]
 
         # truncation=False as the time limit is handled by the `TimeLimit` wrapper added during `make`
         return ob, reward, terminated, False, {}
