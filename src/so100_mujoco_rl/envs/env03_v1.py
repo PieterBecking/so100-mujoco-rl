@@ -110,6 +110,7 @@ class Env03(So100BaseEnv):
         self.data.joint('block_a_joint').qpos[0:3] = self.block_target
 
     def _set_initial_values(self):
+        self.last_joint_angles = START_POSITION
         # the last good observation center x and y
         self.last_ob_center_x = None
         self.last_ob_center_y = None
@@ -129,6 +130,8 @@ class Env03(So100BaseEnv):
         self.block_target_time = 0.0
 
         self.tracking_id = None
+
+        self.last_offscreen_render = None
 
     def get_observation_space(self):
         mins = [self.joints[i].range[0] for i in range(len(self.joints))]
@@ -213,6 +216,24 @@ class Env03(So100BaseEnv):
             # Update the block position
             self.data.joint('block_a_joint').qpos[0:3] = new_block_pos
 
+    def _calculate_angular_velocity_penalty(self, joint_angles, last_joint_angles, timestep):
+        penalty = 0.0
+        angular_velocities = [
+            (joint_angles[i] - last_joint_angles[i]) / timestep for i in range(len(joint_angles))
+        ]
+        if hasattr(self, "last_angular_velocities"):
+            for i in range(len(angular_velocities)):
+                # Calculate the change in angular velocity
+                delta_angular_velocity = angular_velocities[i] - self.last_angular_velocities[i]
+                # Penalize based on the magnitude of the change
+                penalty += abs(delta_angular_velocity) * 0.0025
+        # Store the current angular velocities for the next step
+        self.last_angular_velocities = angular_velocities
+        return -penalty
+
+    def get_joint_angles(self):
+        return self.last_joint_angles
+
     def step(self, a):
         # fraction increases from 0 to 1 over 6 seconds, doesn't exceed 1.0
         sim_time_fraction = self.data.time / 12.0
@@ -271,12 +292,23 @@ class Env03(So100BaseEnv):
         reward += joint_reward
         self.reward_components['rew joint'] = joint_reward
 
+        joint_acceleration_reward = self._calculate_angular_velocity_penalty(
+            new_joint_angles,
+            joint_angles,
+            self.model.opt.timestep
+        )
+        joint_acceleration_reward = joint_acceleration_reward * sim_time_fraction
+        self.reward_components['rew angular velocity'] = joint_acceleration_reward
+        reward += joint_acceleration_reward
+
         self.last_reward = reward
 
         self.reward_components["terminated"] = terminated
 
         ob[-2] = 5 * ob[-2]
         ob[-1] = 5 * ob[-1]
+
+        self.last_joint_angles = new_joint_angles
 
         # truncation=False as the time limit is handled by the `TimeLimit` wrapper added during `make`
         return ob, reward, terminated, False, {}
