@@ -85,6 +85,45 @@ class So100OffscreenBaseEnv(So100BaseEnv):
     def get_joint_angles(self):
         return self.last_joint_angles
 
+    def get_projected_block_position(self):
+        # get the block position in the world frame
+        block_pos = self.data.joint('block_a_joint').qpos[0:3]
+
+        cam_pos = self.data.camera(CAMERA_NAME).xpos
+        cam_mat = self.data.camera(CAMERA_NAME).xmat.reshape(3, 3)
+        rel_pos_world = block_pos - cam_pos
+
+        rel_pos_camera = cam_mat.T @ rel_pos_world
+        x, y, z = rel_pos_camera
+
+        camera = self.offscreen_viewer.get_end_camera()
+        fovy_deg = self.model.cam_fovy[camera.fixedcamid]
+        fovy_rad = np.deg2rad(fovy_deg)
+
+        fy = 0.5 * END_CAM_RES_HEIGHT / np.tan(fovy_rad / 2)
+        fx = fy
+
+        cx = END_CAM_RES_WIDTH / 2
+        cy = END_CAM_RES_HEIGHT / 2
+
+        u = fx * x / z + cx
+        v = fy * y / z + cy
+
+        if np.isnan(u) or np.isnan(v):
+            return None
+
+        u = int(u)
+        v = int(v)
+        if u < 0 or u >= END_CAM_RES_WIDTH or v < 0 or v >= END_CAM_RES_HEIGHT:
+            return None
+
+        # need to flip the projected coordinates to match those we'd usually get from using
+        # yolo to do object detection. Presumably this is because there are different coordinate
+        # systems in play
+        u = END_CAM_RES_WIDTH - u
+        v = END_CAM_RES_HEIGHT - v
+        return int(u), int(v)
+
     def _get_obs(self):
         obs_center_x_f = -1.0
         obs_center_y_f = -1.0

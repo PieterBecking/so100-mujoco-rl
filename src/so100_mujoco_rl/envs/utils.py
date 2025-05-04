@@ -96,6 +96,7 @@ from gymnasium.envs.mujoco.mujoco_rendering import OffScreenViewer
 
 from so100_mujoco_rl.envs.utils import MUJOCO_SO100_PREFIX
 
+CAMERA_NAME = "so100_end_point_camera"
 
 # The Gymnasium offscreen renderer doesn't quite work the way we need. It seems
 # to not fix the camera to the end of the arm. Also doesn't quite respect the width
@@ -125,7 +126,7 @@ class EndCamOffScreenViewer(OffScreenViewer):
         cam.type = mujoco.mjtCamera.mjCAMERA_FIXED
         # name in so_arm100.xml is end_point_camera, but it gets given the so100_ prefix
         # when imported as an asset
-        cam.fixedcamid = self.model.camera("so100_end_point_camera").id
+        cam.fixedcamid = self.model.camera(CAMERA_NAME).id
         return cam
 
     def render(self):
