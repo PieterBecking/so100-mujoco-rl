@@ -24,6 +24,14 @@ BLOCK_SPEED_MAX = 2.0
 
 class Env03(So100OffscreenBaseEnv):
 
+    @property
+    def block_space_start(self):
+        return BLOCK_SPACE_START
+
+    @property
+    def block_space_end(self):
+        return BLOCK_SPACE_END
+
     def _set_initial_values(self):
         self.last_joint_angles = START_POSITION
         # the last good observation center x and y
@@ -34,12 +42,12 @@ class Env03(So100OffscreenBaseEnv):
         self.cached_ob_center_x = -1.0
         self.cached_ob_center_y = -1.0
 
-        self.block_space_min = BLOCK_SPACE_START[0]
-        self.block_space_max = BLOCK_SPACE_START[1]
+        self.block_space_min = self.block_space_start[0]
+        self.block_space_max = self.block_space_start[1]
         self.block_speed = BLOCK_SPEED_MIN
         # initial block target is the center of the block space
         self.block_target = [
-            (BLOCK_SPACE_START[0][i] + BLOCK_SPACE_START[1][i]) / 2 for i in range(3)
+            (self.block_space_start[0][i] + self.block_space_start[1][i]) / 2 for i in range(3)
         ]
         self.block_target_dt = 0.01
         self.block_target_time = 0.0
@@ -51,11 +59,11 @@ class Env03(So100OffscreenBaseEnv):
     def _update_block_space(self, sim_time_fraction: float):
         # Interpolate box_space_min and box_space_max based on sim_time_fraction
         self.block_space_min = [
-            BLOCK_SPACE_START[0][i] + sim_time_fraction * (BLOCK_SPACE_END[0][i] - BLOCK_SPACE_START[0][i])
+            self.block_space_start[0][i] + sim_time_fraction * (self.block_space_end[0][i] - self.block_space_start[0][i])
             for i in range(3)
         ]
         self.block_space_max = [
-            BLOCK_SPACE_START[1][i] + sim_time_fraction * (BLOCK_SPACE_END[1][i] - BLOCK_SPACE_START[1][i])
+            self.block_space_start[1][i] + sim_time_fraction * (self.block_space_end[1][i] - self.block_space_start[1][i])
             for i in range(3)
         ]
 

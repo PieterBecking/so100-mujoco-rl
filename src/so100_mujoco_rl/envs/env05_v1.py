@@ -9,7 +9,25 @@ from so100_mujoco_rl.envs.utils import (
     MUJOCO_SO100_PREFIX
 )
 
+# min xyz, and max xyz
+BLOCK_SPACE_START = [
+    [-0.05, -0.4, 0.01],
+    [0.05, -0.3, 0.01]
+]
+BLOCK_SPACE_END = [
+    [-0.45, -0.45, 0.01],
+    [0.45, -0.25, 0.5]
+]
+
 class Env05(Env03):
+
+    @property
+    def block_space_start(self):
+        return BLOCK_SPACE_START
+
+    @property
+    def block_space_end(self):
+        return BLOCK_SPACE_END
 
     def _get_obs(self):
         obs_center_x_f = -1.0
