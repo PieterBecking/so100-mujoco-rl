@@ -102,6 +102,17 @@ class Env03(So100OffscreenBaseEnv):
             # Update the block position
             self.data.joint('block_a_joint').qpos[0:3] = new_block_pos
 
+            # need to zero out the blocks vecocity, because when we cancel out gravity
+            # momentum causes the block to fly out to space
+            self.data.joint('block_a_joint').qvel[0:3] = [0,0,0]
+
+            # Get the mass of the block_a body
+            block_a_body_id = self.model.body('block_a').id
+            mass = self.model.body_mass[block_a_body_id]
+            gravity = self.model.opt.gravity
+            anti_gravity_force = -mass * gravity
+            self.data.joint('block_a_joint').qfrc_applied[0:3] = anti_gravity_force
+
     def step(self, a):
         # fraction increases from 0 to 1 over 6 seconds, doesn't exceed 1.0
         sim_time_fraction = self.data.time / 12.0
