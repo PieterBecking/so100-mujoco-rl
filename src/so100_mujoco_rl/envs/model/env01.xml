@@ -28,7 +28,8 @@
   <worldbody>
     <body name="block_a">
       <joint name="block_a_joint" type="free"/>
-      <geom size="0.02 0.02 0.02" pos="0.0 0.0 0.0" type="box" rgba="0 1 0 1" />
+      <!-- size is the "half size" of x,y,z dimensions -->
+      <geom size="0.01 0.01 0.01" pos="0.0 0.0 0.0" type="box" rgba="0 1 0 1" />
       <inertial pos="0.01 0.01 0.01"  mass="0.2"/>
     </body>
   </worldbody>
