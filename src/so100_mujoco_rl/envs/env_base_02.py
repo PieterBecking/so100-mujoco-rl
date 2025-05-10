@@ -85,13 +85,10 @@ class So100OffscreenBaseEnv(So100BaseEnv):
     def get_joint_angles(self):
         return self.last_joint_angles
 
-    def get_projected_block_position(self):
-        # get the block position in the world frame
-        block_pos = self.data.joint('block_a_joint').qpos[0:3]
-
+    def _get_projected_position(self, pos: np.ndarray) -> tuple[int, int] | None:
         cam_pos = self.data.camera(CAMERA_NAME).xpos
         cam_mat = self.data.camera(CAMERA_NAME).xmat.reshape(3, 3)
-        rel_pos_world = block_pos - cam_pos
+        rel_pos_world = pos - cam_pos
 
         rel_pos_camera = cam_mat.T @ rel_pos_world
         x, y, z = rel_pos_camera
@@ -123,6 +120,60 @@ class So100OffscreenBaseEnv(So100BaseEnv):
         u = END_CAM_RES_WIDTH - u
         v = END_CAM_RES_HEIGHT - v
         return int(u), int(v)
+
+    def get_projected_block_position(self):
+        # get the block position in the world frame
+        block_pos = self.data.joint('block_a_joint').qpos[0:3]
+        return self._get_projected_position(block_pos)
+
+    def _get_cube_corners(
+            self, center:list[float],
+            width: float,
+            height: float,
+            depth: float
+        ) -> np.ndarray:
+        dx = width / 2
+        dy = height / 2
+        dz = depth / 2
+
+        corners = np.array([
+            [center[0] - dx, center[1] - dy, center[2] - dz],
+            [center[0] - dx, center[1] - dy, center[2] + dz],
+            [center[0] - dx, center[1] + dy, center[2] - dz],
+            [center[0] - dx, center[1] + dy, center[2] + dz],
+            [center[0] + dx, center[1] - dy, center[2] - dz],
+            [center[0] + dx, center[1] - dy, center[2] + dz],
+            [center[0] + dx, center[1] + dy, center[2] - dz],
+            [center[0] + dx, center[1] + dy, center[2] + dz],
+        ])
+
+        return corners
+
+    def get_projected_cube_bounding_box(self):
+        cube_corners = self._get_cube_corners(
+            self.data.joint('block_a_joint').qpos[0:3],
+            0.02,
+            0.02,
+            0.02,
+        )
+
+        projected_corners = [
+            self._get_projected_position(corner) for corner in cube_corners
+        ]
+        projected_corners = [
+            corner for corner in projected_corners if corner is not None
+        ]
+        if not projected_corners:
+            return None
+        if len(projected_corners) < 2:
+            return None
+
+        min_x = min(corner[0] for corner in projected_corners)
+        max_x = max(corner[0] for corner in projected_corners)
+        min_y = min(corner[1] for corner in projected_corners)
+        max_y = max(corner[1] for corner in projected_corners)
+
+        return (min_x, min_y), (max_x, max_y)
 
     def _get_obs(self):
         obs_center_x_f = -1.0
