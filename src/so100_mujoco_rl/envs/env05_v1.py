@@ -39,6 +39,11 @@ class Env05(Env03):
             obs_center_x_f = center_x / END_CAM_RES_WIDTH
             obs_center_y_f = center_y / END_CAM_RES_HEIGHT
 
+            # add noise, as there will certainly be noise when the object detection
+            # process is used
+            obs_center_x_f += np.random.uniform(-0.05, 0.05)
+            obs_center_y_f += np.random.uniform(-0.05, 0.05)
+
         if False:
             img = self.offscreen_viewer.render()
 
