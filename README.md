@@ -45,10 +45,16 @@ To test the policy run the following command. An interactive MuJoCo window will 
 
     pixi run main -a PPO -m models/Env01_PPO/best_model.zip test -e Env01
 
+To record a video of a simulation using a trained model use the following command.
+
+    pixi run main -a PPO -m models/Env01_PPO/best_model.zip record -e Env01
+
 
 # Environments
 
 ## Env01
+
+![env01 animation](./docs/so100-rl-env01.gif)
 
 so100 starts in any one of a number of starting positions and attempts to reach the green cube. Contact between the arm and cube has been disabled so it will never interact with the cube.
 
@@ -60,3 +66,23 @@ so100 starts in a rest position and reaches for cube, when the cube is reached i
 
 Trains well using PPO, and policy does ok when used on Env01 too
 
+## Env03
+
+Block initially starts in a fixed position, but then starts moving around in a random direction at increasing speed. There is a camera attached to the end of the so100, and from this the scene is rendered offscreen, this render is then run through a YOLO object detection model to get the pixel bounding box coordinates of the cube. The policy is trained to make the arm move so that the cube is always in the center of the camera. This has the effect of getting the robot to look at the cube.
+
+Trains well using PPO, but is very slow due to overhead of offscreen render and running the object detection model. Use Env05 instead.
+
+## Env04
+
+Same offscreen render + object detection approach, but the cube randomly jumps locations instead of moving continuously.
+
+Trains slow (as per Env03), recommend Env05
+
+
+## Env05
+
+![env05 animation](./docs/so100-rl-env05.gif)
+
+Same as Env03, but uses a simple matrix calculation to reproject the cube location into camera coordinates skipping the need to do the offscreen render and object detection. It is **much** faster to train as a result.
+
+Trains well using PPO
