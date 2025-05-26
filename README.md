@@ -62,6 +62,8 @@ Trains ok using PPO
 
 ## Env02
 
+![env02 animation](./docs/so100-rl-env02.gif)
+
 so100 starts in a rest position and reaches for cube, when the cube is reached it is moved to a new location. Contact between the arm and cube has been disabled.
 
 Trains well using PPO, and policy does ok when used on Env01 too
