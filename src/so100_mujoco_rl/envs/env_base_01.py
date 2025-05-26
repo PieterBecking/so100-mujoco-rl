@@ -199,8 +199,8 @@ class So100BaseEnv(MujocoEnv, utils.EzPickle):
             # then the block is in front of the robot
             # so the second joint, pitch, should be greater than -0.5 * pi
             pitch = joint_angles[1]
-            if self.last_joint_angles is not None and pitch < -0.5 * math.pi:
-                pitch_reward = (pitch + 0.5 * math.pi) * 0.7
+            if self.last_joint_angles is not None and pitch < -0.7 * math.pi:
+                pitch_reward = (pitch + 0.7 * math.pi) * 0.7
                 reward += pitch_reward
                 self.reward_components['rew pitch'] = pitch_reward
 
@@ -211,27 +211,20 @@ class So100BaseEnv(MujocoEnv, utils.EzPickle):
                 self.reward_components['rew end pos z'] = end_pos_z_reward
 
         if self.last_wrist_pos is not None:
-            if wrist_pos[2] < 0.04:
-                wrist_pos_z_reward = (wrist_pos[2] - 0.04) * 10.0
-                wrist_pos_z_reward = np.clip(wrist_pos_z_reward, -0.4, 0.4)
+            if wrist_pos[2] < 0.08:
+                wrist_pos_z_reward = (wrist_pos[2] - 0.08) * 10.0
+                wrist_pos_z_reward = np.clip(wrist_pos_z_reward, -0.8, 0.8)
                 reward += wrist_pos_z_reward
                 self.reward_components['rew wrist pos z'] = wrist_pos_z_reward
 
         if self.start_distance is None and self.loop_count > 1:
             self.start_distance = distance
 
-        if self.start_distance is not None:
-            delta_distance_norm = (self.start_distance - distance) / 0.5
-            reward += delta_distance_norm * 0.5
-            self.reward_components['rew start dist'] = delta_distance_norm * 0.5
-
-        if self.last_distance is not None:
-            delta_distance = self.last_distance - distance
-            delta_distance_reward = delta_distance * 500
-            delta_distance_reward = np.clip(delta_distance_reward, -0.25, 0.25)
-            reward += delta_distance_reward
-            self.reward_components['rew last dist'] = delta_distance_reward
-            # print(f"delta_distance: {delta_distance_reward}")
+        detected_distance_reward = -distance
+        detected_distance_reward += 0.02
+        detected_distance_reward = min(detected_distance_reward, 0.0)
+        self.reward_components['detected_distance_reward'] = detected_distance_reward
+        reward += detected_distance_reward * 0.5
 
         joint_reward = self._get_joint_reward()
         reward += joint_reward

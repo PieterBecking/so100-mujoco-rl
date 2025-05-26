@@ -26,7 +26,7 @@ class Env02(So100BaseEnv):
         for joint, new_angle in zip(self.joints, new_joint_angles):
             self.data.actuator(MUJOCO_SO100_PREFIX + joint.name).ctrl = new_angle
 
-        if self.get_block_to_end_distance() < 0.02:
+        if self.get_block_to_end_distance() < 0.03:
             # give it a bonus reward for reaching the block based on its distance
             # from the previous block
             block_distance = np.linalg.norm(
@@ -52,7 +52,7 @@ class Env02(So100BaseEnv):
     def set_random_block_position(self):
         # get a random block location that is at least 80mm away from the base origin, but
         # within 420mm of the base origin
-        dist = np.random.uniform(0.18, 0.42)
+        dist = np.random.uniform(0.22, 0.42)
         theta = np.random.uniform(0, 2 * np.pi)
         theta = -0.5 * np.pi + np.random.uniform(-0.25 * np.pi, 0.25 * np.pi)
         x = dist * math.cos(theta)
