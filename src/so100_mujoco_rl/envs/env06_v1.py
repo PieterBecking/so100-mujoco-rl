@@ -4,13 +4,13 @@ import numpy as np
 
 from scipy.spatial.transform import Rotation
 
-from so100_mujoco_rl.envs.env_base_01 import So100BaseEnv
+from so100_mujoco_rl.envs.env_base_06 import So100BaseEnv06
 from so100_mujoco_rl.envs.utils import JOINT_STEP_SCALE, MUJOCO_SO100_PREFIX, REST_POSITION
 
-class Env06(So100BaseEnv):
+class Env06(So100BaseEnv06):
 
     def __init__(self, **kwargs):
-        So100BaseEnv.__init__(self, './model/env01.xml', **kwargs)
+        So100BaseEnv06.__init__(self, './model/env06.xml', **kwargs)
 
         self.block_pos = None
         self.last_block_pos = None
