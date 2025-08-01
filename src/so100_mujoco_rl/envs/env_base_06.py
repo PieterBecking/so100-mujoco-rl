@@ -141,6 +141,26 @@ class So100BaseEnv(MujocoEnv, utils.EzPickle):
         )
         return distance
 
+    def get_jaw_position(self) -> float:
+        """ Get current jaw position (0 = open, higher values = more closed) """
+        jaw_pos = self.data.joint(MUJOCO_SO100_PREFIX + 'Jaw').qpos[0]
+        return jaw_pos
+
+    def _get_gripper_reward(self, is_in_reach: bool) -> float:
+        """ Calculate reward for gripper closing when block is in reach """
+        if not is_in_reach:
+            return 0.0
+        
+        jaw_pos = self.get_jaw_position()
+        # Jaw range is -0.2 to 2.0, normalize to 0-1 where 1 is fully closed
+        jaw_normalized = np.clip((jaw_pos + 0.2) / 2.2, 0.0, 1.0)
+        
+        # Smooth reward function that encourages closing the gripper
+        # Use a sigmoid-like curve to provide smooth gradient
+        gripper_reward = 100.0 * (1.0 / (1.0 + np.exp(-10 * (jaw_normalized - 0.3))))
+        
+        return gripper_reward
+
     def _get_joint_reward(self) -> float:
         reward = 0.0
         joint_angles = self.get_joint_angles()
@@ -177,7 +197,7 @@ class So100BaseEnv(MujocoEnv, utils.EzPickle):
         self.last_angular_velocities = angular_velocities
         return -penalty
 
-    def _get_reward(self):
+    def _get_reward(self, is_in_reach: bool):
         reward = 0.0
 
         joint_angles = self.get_joint_angles()
@@ -229,6 +249,11 @@ class So100BaseEnv(MujocoEnv, utils.EzPickle):
         joint_reward = self._get_joint_reward()
         reward += joint_reward
         self.reward_components['rew joint'] = joint_reward
+
+        if is_in_reach:
+            gripper_reward = self._get_gripper_reward(is_in_reach)
+            reward += gripper_reward
+            self.reward_components['gripper_reward'] = gripper_reward
 
         # print("reward: ", reward)
         self.last_distance = distance

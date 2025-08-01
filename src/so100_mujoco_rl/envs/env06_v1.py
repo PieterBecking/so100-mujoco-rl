@@ -16,7 +16,8 @@ class Env06(So100BaseEnv):
         self.last_block_pos = None
 
     def step(self, a):
-        reward = self._get_reward()
+        is_in_reach = self.get_block_to_end_distance() < 0.03
+        reward = self._get_reward(is_in_reach)
 
         joint_angles = self.get_joint_angles()
         new_joint_angles = [
