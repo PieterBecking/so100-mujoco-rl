@@ -39,4 +39,4 @@ real = { cmd = "python src/so100_mujoco_rl/real.py" }
 tensorboard = { cmd = "tensorboard --logdir=logs" }
 
 [tool.pixi.dependencies]
-python = "3.10"
+python = "3.10.*"

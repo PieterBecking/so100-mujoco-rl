@@ -18,12 +18,11 @@ DEFAULT_CAMERA_CONFIG = {
 }
 
 
-
 """
 Most of the Env code will be common across different scenarios as the so100
 doesn't change. The base class includes all this common code.
 """
-class So100BaseEnv06(MujocoEnv, utils.EzPickle):
+class So100BaseEnv(MujocoEnv, utils.EzPickle):
     metadata = {
         "render_modes": [
             "human",
