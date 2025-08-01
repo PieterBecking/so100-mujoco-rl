@@ -1,7 +1,7 @@
 [project]
 authors = [{name = "Lachlan Hurst", email = "lachlan.hurst@gmail.com"}]
 name = "so100-mujoco-rl"
-requires-python = ">= 3.11"
+requires-python = ">= 3.10"
 version = "0.1.0"
 dependencies = [
     "requests>=2.32.3,<3",
@@ -13,9 +13,13 @@ dependencies = [
     "gymnasium[other]>=1.1.1,<2",
     "tensorboard>=2.19.0,<3",
     "standard-imghdr>=3.13.0,<4",
-    "pillow>=11.2.1,<12",
+    "pillow>=11.2.0,<12",
     "ultralytics>=8.3.114,<9"
 , "opencv-python>=4.11.0.86,<5", "lap>=0.5.12,<0.6", "draccus>=0.11.5,<0.12", "feetech-servo-sdk>=1.0.0,<2"]
+
+
+[tool.hatch.build.targets.wheel]
+packages = ["src/so100_mujoco_rl"]
 
 [build-system]
 build-backend = "hatchling.build"
@@ -33,3 +37,6 @@ download = { cmd = "python scripts/download.py" }
 main = { cmd = "python src/so100_mujoco_rl/main.py" }
 real = { cmd = "python src/so100_mujoco_rl/real.py" }
 tensorboard = { cmd = "tensorboard --logdir=logs" }
+
+[tool.pixi.dependencies]
+python = "3.10"
